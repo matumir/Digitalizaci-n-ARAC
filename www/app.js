@@ -287,14 +287,207 @@ function opciones(cont, clave, items, crear, esSel) {
   [...cont.children].forEach(b => b.classList.toggle('sel', !!esSel(b._item)));
 }
 
+// ---------------- Incidencias ----------------
+/* Cada partido guarda p.inc = [{ id, tipo, eq, num, num2, min, motivo, sub }]
+   tipo: amarilla | roja | gol | cambio · eq: local | visit (el equipo al que corresponde)
+   gol: sub = normal | penal | en-contra (el gol cuenta para eq; en contra, num es del rival)
+   cambio: num = sale, num2 = entra · min admite adición: "45+2" */
+const TIPOS_INC = {
+  amarilla: { nombre: 'Amarilla', titulo: 'Tarjeta amarilla' },
+  roja:     { nombre: 'Roja',     titulo: 'Tarjeta roja' },
+  gol:      { nombre: 'Gol',      titulo: 'Gol' },
+  cambio:   { nombre: 'Cambio',   titulo: 'Sustitución' },
+};
+const MOTIVOS = {
+  amarilla: ['Juego brusco', 'Protestar', 'Conducta antideportiva', 'Demorar la reanudación', 'No respetar la distancia', 'Infracciones reiteradas', 'Entrar o salir sin permiso', 'Simular'],
+  roja: ['Doble amarilla', 'Juego brusco grave', 'Conducta violenta', 'Escupir', 'Evitar un gol con la mano', 'Evitar ocasión manifiesta de gol', 'Lenguaje ofensivo o insultos'],
+};
+const SUB_GOL = [['normal', 'Jugada'], ['penal', 'De penal'], ['en-contra', 'En contra']];
+
+const ICONOS_INC = {
+  amarilla: '<span class="tarjeta amarilla"></span>',
+  roja: '<span class="tarjeta roja"></span>',
+  gol: '<svg viewBox="0 0 24 24" class="ico-inc"><circle cx="12" cy="12" r="8.5"/><path d="m12 7.8 3.1 2.3-1.2 3.6h-3.8l-1.2-3.6zM12 7.8V3.6M15.1 10.1l3.9-1.3M13.9 13.7l2.4 3.4M10.1 13.7l-2.4 3.4M8.9 10.1 5 8.8"/></svg>',
+  cambio: '<svg viewBox="0 0 24 24" class="ico-inc"><path d="M7 4v13M3.5 13.5 7 17l3.5-3.5M17 20V7M13.5 10.5 17 7l3.5 3.5"/></svg>',
+};
+
+function valorMinuto(m) {
+  const t = String(m || '').match(/^(\d+)(?:\s*\+\s*(\d+))?/);
+  return t ? Number(t[1]) + (t[2] ? Number(t[2]) / 100 : 0) : 999;
+}
+const textoMinuto = m => (m ? `${String(m).replace(/\s+/g, '')}'` : '');
+function golesDe(inc) {
+  const g = { local: 0, visit: 0 };
+  (inc || []).forEach(i => { if (i.tipo === 'gol') g[i.eq]++; });
+  return g;
+}
+function textoInc(i) {
+  if (i.tipo === 'cambio') return [i.num ? `Sale ${i.num}` : '', i.num2 ? `entra ${i.num2}` : ''].filter(Boolean).join(', ') || 'Cambio';
+  const quien = i.num ? `N° ${i.num}` : (i.tipo === 'gol' ? 'Gol' : TIPOS_INC[i.tipo].titulo);
+  if (i.tipo === 'gol' && i.sub === 'penal') return quien + ' (penal)';
+  if (i.tipo === 'gol' && i.sub === 'en-contra') return quien + ' (en contra)';
+  return quien;
+}
+function resumenInc(inc) {
+  const n = t => (inc || []).filter(i => i.tipo === t).length;
+  const partes = [];
+  if (n('amarilla')) partes.push(`${n('amarilla')} amarilla${n('amarilla') > 1 ? 's' : ''}`);
+  if (n('roja')) partes.push(`${n('roja')} roja${n('roja') > 1 ? 's' : ''}`);
+  return partes.join(' · ');
+}
+
+/* Sección de incidencias dividida en local y visitante.
+   obj: el partido (o el formulario) con local, visit, inc, gl y gv.
+   alCambiar(): se llama después de cada alta, edición o baja. */
+function seccionIncidencias(obj, alCambiar) {
+  const cont = el('div', { class: 'inc-equipos' });
+  const pintar = (resaltar) => {
+    cont.innerHTML = '';
+    ['local', 'visit'].forEach(eq => {
+      const id = obj[eq];
+      const lista = (obj.inc || []).filter(i => i.eq === eq).sort((a, b) => valorMinuto(a.min) - valorMinuto(b.min));
+      const filas = el('div', { class: 'inc-lista' });
+      lista.forEach(i => {
+        const fila = el('button', { type: 'button', class: 'inc-fila' + (i.id === resaltar ? ' entra' : ''), onclick: () => editorInc(obj, eq, i.tipo, i, pintarYAvisar) },
+          el('span', { class: 'inc-ico' }), el('span', { class: 'inc-txt' },
+            el('b', {}, textoInc(i)),
+            i.motivo ? el('span', {}, i.motivo) : null),
+          el('span', { class: 'inc-min' }, textoMinuto(i.min)));
+        fila.querySelector('.inc-ico').innerHTML = ICONOS_INC[i.tipo];
+        filas.append(fila);
+      });
+      const botones = el('div', { class: 'inc-botones' });
+      Object.keys(TIPOS_INC).forEach(t => {
+        const b = el('button', { type: 'button', class: 'inc-btn', onclick: () => editorInc(obj, eq, t, null, pintarYAvisar) },
+          el('span', { class: 'inc-ico' }), TIPOS_INC[t].nombre);
+        b.querySelector('.inc-ico').innerHTML = ICONOS_INC[t];
+        botones.append(b);
+      });
+      cont.append(el('div', { class: 'inc-equipo' },
+        el('div', { class: 'inc-cab' },
+          id ? escudo(id) : el('span', { class: 'escudo vacio-esc' }),
+          el('div', {}, el('span', { class: 'inc-rol' }, eq === 'local' ? 'Local' : 'Visitante'),
+            el('b', {}, id && CLUB[id] ? CLUB[id].nombre : 'Sin elegir'))),
+        lista.length ? filas : el('p', { class: 'inc-nada' }, 'Sin incidencias'),
+        botones));
+    });
+  };
+  const pintarYAvisar = (idCambiado) => { pintar(idCambiado); alCambiar(); };
+  pintar();
+  cont._repintar = () => pintar();
+  return cont;
+}
+
+// Hoja para cargar o editar una incidencia.
+function editorInc(obj, eq, tipo, existente, alGuardar) {
+  const T = TIPOS_INC[tipo];
+  const v = Object.assign({ num: '', num2: '', min: '', motivo: '', sub: 'normal' }, existente || {});
+  $('#inc-titulo').textContent = (existente ? 'Editar · ' : '') + T.titulo;
+  $('#inc-equipo').textContent = `${eq === 'local' ? 'Local' : 'Visitante'} · ${obj[eq] && CLUB[obj[eq]] ? CLUB[obj[eq]].nombre : 'equipo sin elegir'}`;
+  const cuerpo = $('#inc-cuerpo'); cuerpo.innerHTML = '';
+
+  const campoNum = (etiqueta, valor, ph) => {
+    const i = el('input', { type: 'text', inputmode: 'numeric', maxlength: 3, class: 'campo campo-num', placeholder: ph });
+    i.value = valor || '';
+    i.addEventListener('input', () => { i.value = i.value.replace(/\D/g, ''); });
+    return [el('label', { class: 'field' }, el('span', { class: 'field-label' }, etiqueta), i), i];
+  };
+  const fila = el('div', { class: 'inc-campos' });
+  let iNum, iNum2;
+  if (tipo === 'cambio') {
+    const [a, x] = campoNum('Sale N°', v.num, 'Ej: 9'); iNum = x;
+    const [b, y] = campoNum('Entra N°', v.num2, 'Ej: 18'); iNum2 = y;
+    fila.append(a, b);
+  } else {
+    const [a, x] = campoNum(tipo === 'gol' && v.sub === 'en-contra' ? 'Jugador N° (rival)' : 'Jugador N°', v.num, 'Ej: 10'); iNum = x;
+    fila.append(a);
+  }
+  // Minuto: teclado de teléfono para poder escribir la adición (45+2)
+  const iMin = el('input', { type: 'text', inputmode: 'tel', maxlength: 6, class: 'campo campo-num', placeholder: tipo === 'cambio' ? 'Ej: 65' : 'Ej: 35 o 45+2' });
+  iMin.value = v.min || '';
+  iMin.addEventListener('input', () => { iMin.value = iMin.value.replace(/[^\d+]/g, '').replace(/\+{2,}/g, '+'); });
+  fila.append(el('label', { class: 'field' }, el('span', { class: 'field-label' }, 'Minuto'), iMin));
+  cuerpo.append(fila);
+
+  // Tipo de gol
+  let sub = v.sub || 'normal';
+  if (tipo === 'gol') {
+    const seg = el('div', { class: 'chips' });
+    SUB_GOL.forEach(([k, txt]) => seg.append(el('button', { type: 'button', class: 'chip' + (k === sub ? ' sel' : ''), onclick: e => {
+      sub = k;
+      seg.querySelectorAll('.chip').forEach(c => c.classList.toggle('sel', c === e.currentTarget));
+      const lbl = fila.querySelector('.field-label');
+      lbl.textContent = k === 'en-contra' ? 'Jugador N° (rival)' : 'Jugador N°';
+    } }, txt)));
+    cuerpo.append(el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Tipo de gol'), seg));
+  }
+
+  // Motivo (sólo tarjetas)
+  let iMotivo;
+  if (MOTIVOS[tipo]) {
+    iMotivo = el('input', { type: 'text', class: 'campo', placeholder: 'Escribí el motivo o elegí uno', maxlength: 120 });
+    iMotivo.value = v.motivo || '';
+    const sug = el('div', { class: 'chips chips-motivo' });
+    const marcar = () => sug.querySelectorAll('.chip').forEach(c => c.classList.toggle('sel', c.textContent === iMotivo.value));
+    MOTIVOS[tipo].forEach(m => sug.append(el('button', { type: 'button', class: 'chip', onclick: () => { iMotivo.value = iMotivo.value === m ? '' : m; marcar(); } }, m)));
+    iMotivo.addEventListener('input', marcar);
+    marcar();
+    cuerpo.append(el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Motivo'), iMotivo, sug));
+  }
+
+  const guardarInc = () => {
+    const nuevo = {
+      id: existente ? existente.id : uid(), tipo, eq,
+      num: iNum.value.trim(), num2: iNum2 ? iNum2.value.trim() : '',
+      min: iMin.value.trim().replace(/\+$/, ''), motivo: iMotivo ? iMotivo.value.trim() : '',
+      sub: tipo === 'gol' ? sub : '',
+    };
+    const antes = golesDe(obj.inc);
+    obj.inc = (obj.inc || []).filter(i => i.id !== nuevo.id).concat(nuevo);
+    sincronizarResultado(obj, antes);
+    cerrarCapa();
+    alGuardar(nuevo.id);
+    toast(existente ? 'Incidencia actualizada' : `${T.titulo} cargada`);
+  };
+  const acciones = el('div', { class: 'inc-acciones' });
+  if (existente) {
+    acciones.append(dosToques(el('button', { type: 'button', class: 'btn btn-peligro-ghost' }, 'Borrar'), () => {
+      const antes = golesDe(obj.inc);
+      obj.inc = obj.inc.filter(i => i.id !== existente.id);
+      sincronizarResultado(obj, antes);
+      cerrarCapa(); alGuardar(); toast('Incidencia borrada');
+    }, '¿Borrar?'));
+  }
+  acciones.append(el('button', { type: 'button', class: 'btn btn-primary', onclick: guardarInc }, existente ? 'Guardar cambios' : 'Agregar'));
+  cuerpo.append(acciones);
+
+  abrirCapa('#h-inc');
+  // En una carga nueva el cursor va directo al número
+  if (!existente) setTimeout(() => iNum.focus(), 380);
+}
+
+/* Si el resultado estaba vacío o coincidía con los goles cargados, se actualiza solo.
+   Un resultado escrito a mano que no coincide con los goles no se toca. */
+function sincronizarResultado(obj, antes) {
+  const ahora = golesDe(obj.inc);
+  const vacio = obj.gl == null && obj.gv == null;
+  const coincidia = obj.gl === antes.local && obj.gv === antes.visit;
+  if (antes.local === ahora.local && antes.visit === ahora.visit) return;
+  if (vacio || coincidia) {
+    const sinGoles = ahora.local === 0 && ahora.visit === 0;
+    obj.gl = sinGoles && vacio ? null : ahora.local;
+    obj.gv = sinGoles && vacio ? null : ahora.visit;
+  }
+}
+
 // ---------------- CARGAR ----------------
-const form = { liga: null, cat: null, sub: null, local: null, visit: null, fecha: hoyISO(), fotos: [], notas: '', gl: null, gv: null };
+const form = { liga: null, cat: null, sub: null, local: null, visit: null, fecha: hoyISO(), fotos: [], notas: '', gl: null, gv: null, inc: [] };
 
 function renderCargar() {
   opciones($('#c-ligas'), 'ligas', LIGAS, l => el('button', {
     type: 'button', class: 'liga-card',
     onclick: () => {
-      if (form.liga !== l.id) { form.liga = l.id; form.cat = null; form.sub = null; form.local = null; form.visit = null; }
+      if (form.liga !== l.id) { form.liga = l.id; form.cat = null; form.sub = null; form.local = null; form.visit = null; form.inc = []; }
       renderCargar();
       setTimeout(() => $('#p-cat').scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
     },
@@ -317,7 +510,7 @@ function renderCargar() {
     }, s), s => s === form.sub);
   }
   const catLista = cat && (!cat.subs || form.sub);
-  ['#p-equipos', '#p-resultado', '#p-fecha', '#p-fotos', '#p-notas', '#barra-guardar'].forEach(s => { $(s).hidden = !catLista; });
+  ['#p-equipos', '#p-resultado', '#p-fecha', '#p-fotos', '#p-inc', '#p-notas', '#barra-guardar'].forEach(s => { $(s).hidden = !catLista; });
   if (!catLista) return;
 
   pintarSlot('#slot-local', 'Local', form.local, 'local');
@@ -327,6 +520,14 @@ function renderCargar() {
     res.innerHTML = '';
     res.append(campoResultado(form.gl, form.gv, r => { form.gl = res._gl = r.gl; form.gv = res._gv = r.gv; }));
     res._gl = form.gl; res._gv = form.gv;
+  }
+  // Incidencias: se recrean sólo si cambian los equipos (si no, se repintan solas)
+  const ci = $('#c-inc');
+  const claveInc = form.local + '|' + form.visit + '|' + form.inc.length;
+  if (ci._clave !== claveInc) {
+    ci.innerHTML = '';
+    ci.append(seccionIncidencias(form, () => { ci._clave = form.local + '|' + form.visit + '|' + form.inc.length; renderCargar(); }));
+    ci._clave = claveInc;
   }
   $('#c-fecha').value = form.fecha;
   $('#c-notas').value = form.notas;
@@ -414,7 +615,7 @@ $('#btn-guardar').addEventListener('click', async () => {
   const btn = $('#btn-guardar'); btn.disabled = true;
   const p = {
     id: uid(), liga: form.liga, cat: form.cat, sub: form.sub || null,
-    local: form.local, visit: form.visit, gl: form.gl, gv: form.gv, fecha: form.fecha || hoyISO(), notas: form.notas.trim(), creado: Date.now(),
+    local: form.local, visit: form.visit, gl: form.gl, gv: form.gv, inc: form.inc, fecha: form.fecha || hoyISO(), notas: form.notas.trim(), creado: Date.now(),
   };
   const fotos = form.fotos.map((f, i) => ({ id: uid() + i, partido: p.id, blob: f.blob, orden: i }));
   try {
@@ -424,7 +625,7 @@ $('#btn-guardar').addEventListener('click', async () => {
   }
   form.fotos.forEach(f => URL.revokeObjectURL(f.url));
   // Se mantienen liga, categoría y fecha para cargar el siguiente más rápido.
-  form.local = null; form.visit = null; form.gl = null; form.gv = null; form.fotos = []; form.notas = '';
+  form.local = null; form.visit = null; form.gl = null; form.gv = null; form.inc = []; form.fotos = []; form.notas = '';
   ver.liga = p.liga; ver.cat = p.cat; ver.sub = null;
   toast('Partido guardado ✓');
   renderCargar();
@@ -495,8 +696,8 @@ async function renderPartidos(animarLista = false) {
         el('b', { class: tieneResultado(p) ? 'marcador' : '' }, textoMarcador(p)),
         el('span', { class: 'cat' }, textoCategoria(p)),
         el('span', { class: 'info' },
-          nf[p.id] ? `${nf[p.id]} foto${nf[p.id] > 1 ? 's' : ''}` : 'sin fotos',
-          p.notas ? ' · con notas' : null)),
+          [nf[p.id] ? `${nf[p.id]} foto${nf[p.id] > 1 ? 's' : ''}` : 'sin fotos', resumenInc(p.inc), p.notas ? 'con notas' : '']
+            .filter(Boolean).join(' · '))),
       escudo(p.visit)));
   });
 }
@@ -505,6 +706,7 @@ async function renderPartidos(animarLista = false) {
 let fotosVisor = [], idxVisor = 0;
 const fotosNuevas = new Set();   // recién agregadas: entran con animación
 const ICO_CAMARA = '<svg class="ico" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+const ICO_DESCARGAR = '<svg class="ico" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></svg>';
 const ICO_GALERIA = '<svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m4 17 5-5 4 4 2.5-2.5L20 18"/></svg>';
 function icono(html) { const t = document.createElement('template'); t.innerHTML = html; return t.content.firstChild; }
 async function abrirDetalle(p) {
@@ -533,17 +735,17 @@ async function pintarDetalle(p) {
 
   // Resultado: se guarda solo al completar (o vaciar) los dos casilleros
   const estadoRes = el('div', { class: 'notas-estado' });
-  c.append(el('div', { class: 'd-seccion' },
-    el('h4', {}, 'Resultado'),
-    campoResultado(p.gl, p.gv, async r => {
+  const resWrap = el('div', {});
+  const pintarRes = () => { resWrap.innerHTML = ''; resWrap.append(campoResultado(p.gl, p.gv, async r => {
       if ((r.gl == null) !== (r.gv == null)) { estadoRes.textContent = 'Completá los goles de los dos equipos'; return; }
       if (r.gl === (p.gl ?? null) && r.gv === (p.gv ?? null)) { estadoRes.textContent = ''; return; }
       p.gl = r.gl; p.gv = r.gv;
       pintarMarcador(); animar(marcador, 'cambia');
       try { await DB.actualizar(p); estadoRes.textContent = r.gl == null ? 'Resultado quitado' : 'Guardado ✓'; } catch (e) { estadoRes.textContent = 'No se pudo guardar'; }
       animar(estadoRes, 'cambia');
-    }),
-    estadoRes));
+    })); };
+  pintarRes();
+  c.append(el('div', { class: 'd-seccion' }, el('h4', {}, 'Resultado'), resWrap, estadoRes));
 
   const grid = el('div', { class: 'd-fotos' });
   fotosVisor.forEach((f, i) => {
@@ -571,10 +773,23 @@ async function pintarDetalle(p) {
     grid,
     el('div', { class: 'foto-botones' },
       el('label', { class: 'btn btn-ghost' }, inCam, icono(ICO_CAMARA), 'Sacar foto'),
-      el('label', { class: 'btn btn-ghost' }, inGal, icono(ICO_GALERIA), 'Agregar de galería'))));
+      el('label', { class: 'btn btn-ghost' }, inGal, icono(ICO_GALERIA), 'Agregar de galería')),
+    fotos.length ? el('button', { type: 'button', class: 'btn btn-ghost btn-block btn-descargar', onclick: e => descargarFotos(p, fotos, e.currentTarget) },
+      icono(ICO_DESCARGAR), fotos.length > 1 ? `Descargar las ${fotos.length} fotos` : 'Descargar la foto') : null));
 
-  // Anotaciones: se guardan solas mientras se escribe
-  const ta = el('textarea', { class: 'campo notas', rows: 5, placeholder: 'Incidencias, expulsiones, demoras, observaciones…' });
+  // Incidencias por equipo: se guardan al instante
+  const estadoInc = el('div', { class: 'notas-estado' });
+  c.append(el('div', { class: 'd-seccion' },
+    el('h4', {}, 'Incidencias'),
+    seccionIncidencias(p, async () => {
+      pintarMarcador(); animar(marcador, 'cambia'); pintarRes();
+      try { await DB.actualizar(p); estadoInc.textContent = 'Guardado ✓'; } catch (e) { estadoInc.textContent = 'No se pudo guardar'; }
+      animar(estadoInc, 'cambia');
+    }),
+    estadoInc));
+
+  // Notas: se guardan solas mientras se escribe
+  const ta = el('textarea', { class: 'campo notas', rows: 4, placeholder: 'Algo más para anotar: demoras, estado de la cancha, observaciones…' });
   ta.value = p.notas || '';
   const estado = el('div', { class: 'notas-estado' });
   let tNota;
@@ -587,7 +802,7 @@ async function pintarDetalle(p) {
   };
   ta.addEventListener('input', () => { estado.textContent = 'Escribiendo…'; clearTimeout(tNota); tNota = setTimeout(guardarNota, 700); });
   ta.addEventListener('blur', guardarNota);
-  c.append(el('div', { class: 'd-seccion' }, el('h4', {}, 'Anotaciones'), ta, estado));
+  c.append(el('div', { class: 'd-seccion' }, el('h4', {}, 'Notas'), ta, estado));
   c._guardarNota = guardarNota;
 
   const zona = el('div', {});
@@ -604,6 +819,72 @@ async function pintarDetalle(p) {
   zona.append(btnBorrar);
   c.append(el('div', { class: 'd-seccion' }, zona));
   c._partido = p;
+}
+
+// ---------------- Descargar fotos ----------------
+const blobABase64 = b => new Promise((ok, mal) => {
+  const r = new FileReader();
+  r.onload = () => ok(String(r.result).split(',')[1]);
+  r.onerror = () => mal(r.error);
+  r.readAsDataURL(b);
+});
+const limpiarNombre = t => t.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 100);
+
+/* En el APK no hay gestor de descargas para blob:, así que las fotos se escriben
+   con el plugin Filesystem en Pictures/ARAC Partidos/<partido>/ y aparecen en la
+   galería. Si eso falla, se ofrece el menú de compartir del sistema. */
+async function descargarFotos(p, fotos, boton) {
+  // Sin la localidad entre paréntesis, para que el nombre de la carpeta no quede cortado
+  const nombreClub = id => (CLUB[id] ? CLUB[id].nombre.replace(/\s*\([^)]*\)/g, '') : 'Equipo');
+  const carpeta = limpiarNombre(`${p.fecha} ${nombreClub(p.local)} vs ${nombreClub(p.visit)}`);
+  const archivo = i => `foto-${String(i + 1).padStart(2, '0')}.jpg`;
+  const Cap = window.Capacitor;
+  const P = (Cap && Cap.Plugins) || {};
+  const nativo = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
+  if (boton) boton.disabled = true;
+  try {
+    if (!nativo) {
+      // Navegador: una descarga por foto
+      for (let i = 0; i < fotos.length; i++) {
+        const url = URL.createObjectURL(fotos[i].blob);
+        const a = el('a', { href: url, download: `${carpeta} ${archivo(i)}` });
+        document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        await esperar(150);
+      }
+      toast(fotos.length > 1 ? 'Fotos descargadas ✓' : 'Foto descargada ✓');
+      return;
+    }
+    toast('Guardando fotos…');
+    const datos = await Promise.all(fotos.map(f => blobABase64(f.blob)));
+    try {
+      for (let i = 0; i < datos.length; i++) {
+        await P.Filesystem.writeFile({
+          path: `Pictures/ARAC Partidos/${carpeta}/${archivo(i)}`,
+          data: datos[i], directory: 'EXTERNAL_STORAGE', recursive: true,
+        });
+      }
+      toast('Guardadas en la galería › ARAC Partidos ✓');
+    } catch (e) {
+      // Plan B: pasar las fotos al menú de compartir (Drive, WhatsApp, Archivos…)
+      const uris = [];
+      for (let i = 0; i < datos.length; i++) {
+        const { uri } = await P.Filesystem.writeFile({ path: `fotos/${archivo(i)}`, data: datos[i], directory: 'CACHE', recursive: true });
+        uris.push(uri);
+      }
+      try {
+        await P.Share.share({ title: carpeta, dialogTitle: 'Guardá las fotos del partido', files: uris });
+      } catch (err) {
+        const m = (err && (err.message || err.errorMessage)) || '';
+        if (/cancel|abort|dismiss/i.test(m)) { toast('No se guardaron las fotos'); return; }
+        throw err;
+      }
+    }
+  } catch (e) {
+    toast('No se pudieron guardar las fotos');
+  } finally {
+    if (boton) boton.disabled = false;
+  }
 }
 
 // Vuelve a pintar el detalle sin perder una anotación a medio escribir.

@@ -1,8 +1,8 @@
 # ARAC Partidos
 
 App para que los árbitros de la ARAC San Francisco registren los partidos que dirigen:
-liga, categoría, equipos, fecha, fotos de planillas y tarjetas, y anotaciones.
-Todo queda guardado en el teléfono; no usa internet.
+liga, categoría, equipos, resultado, incidencias (tarjetas, goles y cambios), fotos de planillas y notas.
+Los partidos quedan guardados en el teléfono. Internet sólo hace falta para iniciar sesión.
 
 ## Cómo obtener el APK
 
@@ -34,7 +34,33 @@ Para las versiones siguientes alcanza con `git push`: se compila sola y aparece 
 - `www/datos-clubes.js` — lista de clubes por liga. Para corregir un nombre, editá el campo `nombre`.
 - `www/img/escudos/` — escudos (`sf-` San Francisco, `sm-` San Martín, `rf-` Rafaelina).
 - `www/img/ligas/` — logos de las ligas. `www/img/arac.png` — logo de la asociación.
+- `www/auth.js` — inicio de sesión con Google y whitelist. `www/config.js` — datos del proyecto de Supabase.
+- `www/vendor/` — Capacitor, sus plugins y supabase-js (copiados de `node_modules`, la app no usa bundler).
+- `supabase/setup.sql` — whitelist de cuentas (se corre en Supabase).
 - `android/` — proyecto Android (Capacitor 7).
 
+## Inicio de sesión (Supabase + Google)
+
+Sólo pueden entrar las cuentas que estén en la whitelist. Se configura una vez:
+
+1. **Supabase**: creá un proyecto en supabase.com. En *Project Settings → API* copiá la
+   **Project URL** y la clave **anon / publishable** a `www/config.js`.
+2. **Google Cloud** (console.cloud.google.com): creá un proyecto →
+   *APIs y servicios → Pantalla de consentimiento de OAuth* (tipo **Externo**, con nombre y mail de soporte;
+   después **Publicar la app**, si no sólo entran los "usuarios de prueba") →
+   *Credenciales → Crear credenciales → ID de cliente de OAuth* → tipo **Aplicación web** →
+   en *URIs de redireccionamiento autorizados* poné `https://<tu-proyecto>.supabase.co/auth/v1/callback`.
+   Copiá el **ID de cliente** y el **secreto**.
+3. **Supabase → Authentication → Sign In / Providers → Google**: activalo y pegá el ID y el secreto.
+   En el mismo menú conviene **desactivar Email** (no se usa).
+4. **Supabase → Authentication → URL Configuration → Redirect URLs**: agregá `com.arac.partidos://login`.
+5. **Supabase → SQL Editor**: pegá `supabase/setup.sql`, cambiá `tu-mail@gmail.com` por los mails reales y tocá *Run*.
+
+Para autorizar a alguien más: *SQL Editor* →
+`insert into public.whitelist (email) values ('mail@gmail.com');` (en minúsculas).
+Para quitarlo: `delete from public.whitelist where email = 'mail@gmail.com';`
+(la próxima vez que abra la app con internet, se le cierra la sesión).
+
 ## Importante
-Los datos viven solo en el teléfono: si se desinstala la app o se borran sus datos, se pierden.
+Los partidos viven sólo en el teléfono: si se desinstala la app o se borran sus datos, se pierden.
+Las fotos se pueden bajar a la galería desde cada partido (botón *Descargar*).

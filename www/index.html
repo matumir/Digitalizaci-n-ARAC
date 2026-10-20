@@ -19,6 +19,20 @@
   <p>Partidos dirigidos</p>
 </div>
 
+<!-- Inicio de sesión -->
+<div id="login" class="login">
+  <div class="login-caja">
+    <span class="splash-logo login-logo"><img src="img/arac.png" alt="ARAC"></span>
+    <h1>ARAC Partidos</h1>
+    <p class="login-sub">Ingresá con tu cuenta de Google autorizada por la ARAC.</p>
+    <button type="button" class="btn btn-primary btn-block login-google" id="btn-google">
+      <svg class="g" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.3c0-.8-.1-1.5-.2-2.2H12v4.2h6a5.1 5.1 0 0 1-2.2 3.4v2.8h3.6c2-1.9 3.2-4.7 3.2-8.2z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.4-2.7l-3.6-2.8c-1 .7-2.3 1.1-3.8 1.1-2.9 0-5.4-2-6.3-4.6H2v2.9A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.7 14c-.2-.7-.4-1.4-.4-2.1s.1-1.4.4-2.1V7H2a11 11 0 0 0 0 9.9z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2 7l3.7 2.9C6.6 7.4 9.1 5.4 12 5.4z"/></svg>
+      <span>Continuar con Google</span>
+    </button>
+    <p class="login-msg" id="login-msg" role="status"></p>
+  </div>
+</div>
+
 <header class="topbar">
   <div class="topbar-title">
     <span class="marca"><img src="img/arac.png" alt="ARAC — Asociación Regional de Árbitros Colegiados San Francisco"></span>
@@ -83,9 +97,14 @@
       <div class="fotos-mini" id="c-fotos"></div>
     </div>
 
+    <div class="paso" id="p-inc" hidden>
+      <h2><span class="num">7</span>Incidencias <small>opcional: tarjetas, goles y cambios de cada equipo</small></h2>
+      <div id="c-inc"></div>
+    </div>
+
     <div class="paso" id="p-notas" hidden>
-      <h2><span class="num">7</span>Anotaciones <small>opcional</small></h2>
-      <textarea id="c-notas" class="campo notas" rows="4" placeholder="Incidencias, expulsiones, demoras, observaciones…"></textarea>
+      <h2><span class="num">8</span>Notas <small>opcional</small></h2>
+      <textarea id="c-notas" class="campo notas" rows="4" placeholder="Algo más para anotar: demoras, estado de la cancha, observaciones…"></textarea>
     </div>
 
     <div class="guardar-barra" id="barra-guardar" hidden>
@@ -147,7 +166,30 @@
         </div>
         <p class="field-help">Automático sigue el modo claro u oscuro del teléfono.</p>
       </div>
+      <div class="field" id="aj-cuenta" hidden>
+        <span class="field-label">Cuenta</span>
+        <div class="cuenta-fila">
+          <span class="cuenta-mail" id="aj-mail"></span>
+          <button type="button" class="btn btn-ghost" id="btn-salir">Cerrar sesión</button>
+        </div>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- Cargar / editar una incidencia -->
+<div class="sheet-wrap" id="h-inc" hidden>
+  <div class="sheet-fondo" data-cerrar></div>
+  <div class="sheet" role="dialog" aria-labelledby="inc-titulo">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head">
+      <div>
+        <h2 id="inc-titulo">Incidencia</h2>
+        <p class="sheet-sub" id="inc-equipo"></p>
+      </div>
+      <button type="button" class="icon-btn" data-cerrar aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="sheet-body" id="inc-cuerpo"></div>
   </div>
 </div>
 
@@ -163,7 +205,15 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<script src="vendor/capacitor.js"></script>
+<script src="vendor/cap-app.js"></script>
+<script src="vendor/cap-browser.js"></script>
+<script src="vendor/cap-filesystem.js"></script>
+<script src="vendor/cap-share.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="config.js"></script>
 <script src="datos-clubes.js"></script>
 <script src="app.js"></script>
+<script src="auth.js"></script>
 </body>
 </html>

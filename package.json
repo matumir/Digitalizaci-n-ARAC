@@ -6,7 +6,11 @@
   "dependencies": {
     "@capacitor/android": "7.4.3",
     "@capacitor/app": "^7.1.0",
-    "@capacitor/core": "7.4.3"
+    "@capacitor/browser": "^7.0.5",
+    "@capacitor/core": "7.4.3",
+    "@capacitor/filesystem": "^7.1.9",
+    "@capacitor/share": "^7.0.4",
+    "@supabase/supabase-js": "^2.118.0"
   },
   "devDependencies": {
     "@capacitor/cli": "7.4.3"
