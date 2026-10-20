@@ -56,6 +56,11 @@
       </div>
     </div>
 
+    <div class="paso" id="p-resultado" hidden>
+      <h2>Resultado <small>opcional, también se puede cargar después</small></h2>
+      <div id="c-resultado"></div>
+    </div>
+
     <div class="paso" id="p-fecha" hidden>
       <h2>Fecha del partido</h2>
       <input type="date" id="c-fecha" class="fecha">
@@ -115,6 +120,7 @@
 <div class="visor" id="visor" hidden>
   <img id="visor-img" alt="Foto del partido">
   <button type="button" class="visor-cerrar" data-cerrar>✕</button>
+  <button type="button" class="visor-borrar" id="visor-borrar" aria-label="Borrar foto">🗑</button>
   <button type="button" class="visor-ant" id="visor-ant">‹</button>
   <button type="button" class="visor-sig" id="visor-sig">›</button>
   <span class="visor-num" id="visor-num"></span>

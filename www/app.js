@@ -32,6 +32,10 @@ function textoCategoria(p) {
   return c.nombre;
 }
 
+// Resultado: gl = goles del local, gv = del visitante (null si no se cargó).
+const tieneResultado = p => p.gl != null && p.gv != null;
+const textoMarcador = p => (tieneResultado(p) ? `${p.gl} – ${p.gv}` : 'vs');
+
 // ---------------- Base de datos ----------------
 const DB = (() => {
   let db;
@@ -115,6 +119,46 @@ function escudo(id) {
   }
   return box;
 }
+// Dos casilleros de goles (local – visitante). alCambiar recibe {gl, gv}, con null si está vacío.
+function campoResultado(gl, gv, alCambiar) {
+  const leer = i => {
+    const v = i.value.trim();
+    if (v === '') return null;
+    const n = Math.max(0, Math.min(99, parseInt(v, 10) || 0));
+    if (String(n) !== v) i.value = n;
+    return n;
+  };
+  const casillero = (valor, rol) => {
+    const i = el('input', { type: 'number', inputmode: 'numeric', min: 0, max: 99, class: 'gol', placeholder: '–', 'aria-label': 'Goles ' + rol });
+    if (valor != null) i.value = valor;
+    i.addEventListener('focus', () => i.select());
+    i.addEventListener('input', () => alCambiar({ gl: leer(iL), gv: leer(iV) }));
+    return i;
+  };
+  const iL = casillero(gl, 'local'), iV = casillero(gv, 'visitante');
+  return el('div', { class: 'resultado' },
+    el('label', {}, iL, el('span', {}, 'Local')),
+    el('b', {}, '–'),
+    el('label', {}, iV, el('span', {}, 'Visitante')));
+}
+
+// Botón de dos toques: el primero pide confirmación, el segundo ejecuta.
+function dosToques(btn, accion, textoConfirmar = '¿Borrar?') {
+  const original = btn.textContent;
+  let t;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!btn.classList.contains('confirmando')) {
+      btn.classList.add('confirmando'); btn.textContent = textoConfirmar;
+      t = setTimeout(() => { btn.classList.remove('confirmando'); btn.textContent = original; }, 3000);
+      return;
+    }
+    clearTimeout(t); btn.classList.remove('confirmando'); btn.textContent = original;
+    accion();
+  });
+  return btn;
+}
+
 let toastT;
 function toast(msg) {
   const t = $('#toast');
@@ -170,7 +214,7 @@ function mostrarVista(v) {
 }
 
 // ---------------- CARGAR ----------------
-const form = { liga: null, cat: null, sub: null, local: null, visit: null, fecha: hoyISO(), fotos: [], notas: '' };
+const form = { liga: null, cat: null, sub: null, local: null, visit: null, fecha: hoyISO(), fotos: [], notas: '', gl: null, gv: null };
 
 function renderCargar() {
   const cont = $('#c-ligas'); cont.innerHTML = '';
@@ -202,11 +246,13 @@ function renderCargar() {
     }, s)));
   }
   const catLista = cat && (!cat.subs || form.sub);
-  ['#p-equipos', '#p-fecha', '#p-fotos', '#p-notas', '#barra-guardar'].forEach(s => { $(s).hidden = !catLista; });
+  ['#p-equipos', '#p-resultado', '#p-fecha', '#p-fotos', '#p-notas', '#barra-guardar'].forEach(s => { $(s).hidden = !catLista; });
   if (!catLista) return;
 
   pintarSlot('#slot-local', 'Local', form.local, 'local');
   pintarSlot('#slot-visit', 'Visitante', form.visit, 'visit');
+  const res = $('#c-resultado'); res.innerHTML = '';
+  res.append(campoResultado(form.gl, form.gv, r => { form.gl = r.gl; form.gv = r.gv; }));
   $('#c-fecha').value = form.fecha;
   $('#c-notas').value = form.notas;
   pintarFotosForm();
@@ -279,10 +325,11 @@ function pintarFotosForm() {
 
 $('#btn-guardar').addEventListener('click', async () => {
   if (!form.local || !form.visit) { toast('Elegí los dos equipos'); return; }
+  if ((form.gl == null) !== (form.gv == null)) { toast('Completá los goles de los dos equipos'); return; }
   const btn = $('#btn-guardar'); btn.disabled = true;
   const p = {
     id: uid(), liga: form.liga, cat: form.cat, sub: form.sub || null,
-    local: form.local, visit: form.visit, fecha: form.fecha || hoyISO(), notas: form.notas.trim(), creado: Date.now(),
+    local: form.local, visit: form.visit, gl: form.gl, gv: form.gv, fecha: form.fecha || hoyISO(), notas: form.notas.trim(), creado: Date.now(),
   };
   const fotos = form.fotos.map((f, i) => ({ id: uid() + i, partido: p.id, blob: f.blob, orden: i }));
   try {
@@ -292,7 +339,7 @@ $('#btn-guardar').addEventListener('click', async () => {
   }
   form.fotos.forEach(f => URL.revokeObjectURL(f.url));
   // Se mantienen liga, categoría y fecha para cargar el siguiente más rápido.
-  form.local = null; form.visit = null; form.fotos = []; form.notas = '';
+  form.local = null; form.visit = null; form.gl = null; form.gv = null; form.fotos = []; form.notas = '';
   ver.liga = p.liga; ver.cat = p.cat; ver.sub = null;
   toast('Partido guardado ✓');
   renderCargar();
@@ -359,7 +406,7 @@ async function renderPartidos() {
     cont.append(el('button', { type: 'button', class: 'partido', onclick: () => abrirDetalle(p) },
       escudo(p.local),
       el('span', { class: 'medio' },
-        el('b', {}, 'vs'),
+        el('b', { class: tieneResultado(p) ? 'marcador' : '' }, textoMarcador(p)),
         el('span', { class: 'cat' }, textoCategoria(p)),
         el('span', { class: 'nfotos' }, nf[p.id] ? `${nf[p.id]} foto${nf[p.id] > 1 ? 's' : ''}` : 'sin fotos'),
         p.notas ? el('span', { class: 'nota-ico' }, '📝 con notas') : null),
@@ -380,15 +427,36 @@ async function pintarDetalle(p) {
   fotosVisor = fotos.map(f => ({ id: f.id, url: URL.createObjectURL(f.blob) }));
   const c = $('#d-cuerpo'); c.innerHTML = '';
   const eq = id => el('div', {}, escudo(id), el('div', { class: 'nombre' }, CLUB[id] ? CLUB[id].nombre : '—'));
+  const marcador = el('b', {});
+  const pintarMarcador = () => {
+    marcador.textContent = textoMarcador(p);
+    marcador.className = tieneResultado(p) ? 'marcador' : '';
+  };
+  pintarMarcador();
   c.append(el('div', { class: 'd-cab' },
-    el('div', { class: 'd-equipos' }, eq(p.local), el('b', {}, 'vs'), eq(p.visit)),
+    el('div', { class: 'd-equipos' }, eq(p.local), marcador, eq(p.visit)),
     el('div', { class: 'd-meta' },
       el('span', {}, el('b', {}, ligaDe(p.liga).nombre)),
       el('span', {}, textoCategoria(p)),
       el('span', {}, fechaLarga(p.fecha)))));
 
+  // Resultado: se guarda solo al completar (o vaciar) los dos casilleros
+  const estadoRes = el('div', { class: 'notas-estado' });
+  c.append(el('div', { class: 'd-seccion' },
+    el('h4', {}, 'Resultado'),
+    campoResultado(p.gl, p.gv, async r => {
+      if ((r.gl == null) !== (r.gv == null)) { estadoRes.textContent = 'Completá los goles de los dos equipos'; return; }
+      if (r.gl === (p.gl ?? null) && r.gv === (p.gv ?? null)) { estadoRes.textContent = ''; return; }
+      p.gl = r.gl; p.gv = r.gv;
+      pintarMarcador();
+      try { await DB.actualizar(p); estadoRes.textContent = r.gl == null ? 'Resultado quitado' : 'Guardado ✓'; } catch (e) { estadoRes.textContent = 'No se pudo guardar'; }
+    }),
+    estadoRes));
+
   const grid = el('div', { class: 'd-fotos' });
-  fotosVisor.forEach((f, i) => grid.append(el('button', { type: 'button', onclick: () => abrirVisor(i) }, el('img', { src: f.url, alt: 'Foto ' + (i + 1) }))));
+  fotosVisor.forEach((f, i) => grid.append(el('div', { class: 'd-foto' },
+    el('button', { type: 'button', class: 'ver', onclick: () => abrirVisor(i) }, el('img', { src: f.url, alt: 'Foto ' + (i + 1) })),
+    dosToques(el('button', { type: 'button', class: 'quitar', 'aria-label': 'Borrar foto' }, '✕'), () => borrarFoto(p, f.id)))));
   const inCam = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
   const inGal = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
   const alAgregar = async e => {
@@ -397,7 +465,7 @@ async function pintarDetalle(p) {
     const base = fotos.length;
     await DB.agregarFotos(blobs.map((b, i) => ({ id: uid() + i, partido: p.id, blob: b, orden: base + i })));
     toast(blobs.length > 1 ? 'Fotos agregadas ✓' : 'Foto agregada ✓');
-    pintarDetalle(p);
+    refrescarDetalle(p);
   };
   inCam.addEventListener('change', alAgregar); inGal.addEventListener('change', alAgregar);
   c.append(el('div', { class: 'd-seccion' },
@@ -439,6 +507,18 @@ async function pintarDetalle(p) {
   c._partido = p;
 }
 
+// Vuelve a pintar el detalle sin perder una anotación a medio escribir.
+async function refrescarDetalle(p) {
+  const c = $('#d-cuerpo');
+  if (c._guardarNota) await c._guardarNota();
+  await pintarDetalle(p);
+}
+async function borrarFoto(p, id) {
+  try { await DB.borrarFoto(id); } catch (e) { toast('No se pudo borrar la foto'); return; }
+  toast('Foto borrada');
+  await refrescarDetalle(p);
+}
+
 function abrirVisor(i) {
   idxVisor = i; pintarVisor();
   abrirCapa('#visor');
@@ -448,9 +528,18 @@ function pintarVisor() {
   $('#visor-img').src = fotosVisor[idxVisor].url;
   $('#visor-num').textContent = `${idxVisor + 1} / ${n}`;
   $('#visor-ant').hidden = n < 2; $('#visor-sig').hidden = n < 2;
+  const b = $('#visor-borrar'); b.classList.remove('confirmando'); b.textContent = '🗑';
 }
 $('#visor-ant').addEventListener('click', () => { idxVisor = (idxVisor - 1 + fotosVisor.length) % fotosVisor.length; pintarVisor(); });
 $('#visor-sig').addEventListener('click', () => { idxVisor = (idxVisor + 1) % fotosVisor.length; pintarVisor(); });
+dosToques($('#visor-borrar'), async () => {
+  const f = fotosVisor[idxVisor];
+  if (!f) return;
+  await borrarFoto($('#d-cuerpo')._partido, f.id);
+  if (!fotosVisor.length) { cerrarCapa(); return; }
+  idxVisor = Math.min(idxVisor, fotosVisor.length - 1);
+  pintarVisor();
+});
 // Deslizar para pasar de foto
 (() => {
   let x0 = null;
