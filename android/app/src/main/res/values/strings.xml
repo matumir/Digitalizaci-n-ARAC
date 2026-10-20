@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ARAC Partidos</string>
+    <string name="title_activity_main">ARAC Partidos</string>
+    <string name="package_name">com.arac.partidos</string>
+    <string name="custom_url_scheme">com.arac.partidos</string>
+</resources>

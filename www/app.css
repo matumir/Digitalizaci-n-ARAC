@@ -1,0 +1,149 @@
+:root{
+  --azul:#1590ec; --azul-osc:#0b6fc0; --amarillo:#ffe600; --rojo:#ff4b1f;
+  --fondo:#f2f5f9; --tarjeta:#ffffff; --texto:#15202b; --suave:#5f6b7a; --linea:#dde3ea;
+  --radio:14px;
+  --sab:env(safe-area-inset-bottom,0px); --sat:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--fondo);color:var(--texto);font-size:16px}
+button{font:inherit;color:inherit;cursor:pointer}
+[hidden]{display:none!important}
+
+/* Splash */
+.splash{position:fixed;inset:0;z-index:100;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .4s}
+.splash img{width:min(78vw,380px);animation:entra .6s ease-out}
+.splash p{margin:0;color:var(--suave);letter-spacing:.12em;text-transform:uppercase;font-size:13px;font-weight:600}
+.splash.fuera{opacity:0;pointer-events:none}
+@keyframes entra{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
+
+/* Cabecera */
+.top{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--linea);padding:calc(var(--sat) + 8px) 16px 8px;display:flex;justify-content:center}
+.top img{height:64px}
+
+main{padding:12px 14px calc(150px + var(--sab));max-width:720px;margin:0 auto}
+
+/* Barra inferior */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:#fff;border-top:1px solid var(--linea);display:flex;padding-bottom:var(--sab)}
+.tabbar button{flex:1;border:0;background:none;padding:10px 0 12px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:13px;font-weight:600;color:var(--suave)}
+.tabbar svg{width:26px;height:26px;fill:currentColor}
+.tabbar button.activa{color:var(--azul)}
+.tabbar button[data-vista="cargar"] svg{background:var(--azul);fill:#fff;border-radius:50%;padding:3px}
+
+.titulo{font-size:22px;margin:4px 2px 10px}
+.paso{background:var(--tarjeta);border-radius:var(--radio);padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.paso h2{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--suave);margin:0 0 10px}
+.paso h2 small{text-transform:none;letter-spacing:0;font-weight:400}
+
+/* Ligas para cargar */
+.ligas-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.liga-card{border:2px solid var(--linea);border-radius:12px;background:#fff;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12.5px;font-weight:600;line-height:1.2;text-align:center}
+.liga-card img{width:64px;height:64px;object-fit:contain}
+.liga-card.sel{border-color:var(--azul);background:#eaf5ff}
+
+/* Chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
+.chip{border:1.5px solid var(--linea);background:#fff;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600}
+.chip.sel{background:var(--azul);border-color:var(--azul);color:#fff}
+.chips-grandes .chip{padding:12px 16px;font-size:15px}
+.chips-sub .chip{padding:6px 12px;font-size:13px}
+
+/* Equipos */
+.versus{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+.vs{font-weight:800;color:var(--suave)}
+.slot{border:2px dashed #b9c4d0;border-radius:14px;background:#fafcfe;min-height:150px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--suave)}
+.slot .rol{font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.slot .mas{font-size:34px;line-height:1;color:var(--azul)}
+.slot.lleno{border-style:solid;border-color:var(--azul);background:#fff;color:var(--texto)}
+.slot .nombre{font-weight:600;font-size:12.5px;text-align:center;line-height:1.2}
+
+.escudo{display:grid;place-items:center;border-radius:12px;overflow:hidden;flex:none}
+.escudo img{width:100%;height:100%;object-fit:contain}
+.slot .escudo{width:86px;height:86px}
+
+.fecha{width:100%;font:inherit;font-size:18px;padding:12px;border:1.5px solid var(--linea);border-radius:10px;background:#fff;color:var(--texto)}
+
+.foto-botones{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn-sec{display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--azul);color:var(--azul);border-radius:10px;padding:12px 8px;font-weight:600;font-size:14.5px;background:#fff;text-align:center}
+.fotos-mini{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px;margin-top:10px}
+.fotos-mini:empty{display:none}
+.mini{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:#e9eef3}
+.mini img{width:100%;height:100%;object-fit:cover}
+.mini .quitar{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:1}
+
+.guardar-barra{position:fixed;left:0;right:0;bottom:calc(64px + var(--sab));z-index:15;padding:10px 14px;background:linear-gradient(transparent,var(--fondo) 30%)}
+.btn{display:block;width:100%;max-width:692px;margin:0 auto;border:0;border-radius:12px;background:var(--azul);color:#fff;font-size:17px;font-weight:700;padding:15px}
+.btn:disabled{background:#a9c7e2}
+.btn-peligro{border:1.5px solid #d93025;color:#d93025;background:#fff;border-radius:12px;padding:12px;width:100%;font-weight:600}
+
+/* Ver partidos */
+.ligas-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.ligas-tabs button{border:2px solid var(--linea);background:#fff;border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11.5px;font-weight:600;line-height:1.15}
+.ligas-tabs img{width:44px;height:44px;object-fit:contain}
+.ligas-tabs button.sel{border-color:var(--azul);background:#eaf5ff}
+.ligas-tabs .cuenta{font-size:11px;color:var(--suave);font-weight:500}
+
+.grupo-fecha{font-size:13px;font-weight:700;color:var(--suave);margin:16px 4px 8px}
+.grupo-fecha::first-letter{text-transform:uppercase}
+.partido{width:100%;border:0;background:var(--tarjeta);border-radius:var(--radio);padding:12px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,.06);text-align:center}
+.partido .escudo{width:64px;height:64px;margin:0 auto}
+.partido .medio{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--suave)}
+.partido .medio b{font-size:15px;color:var(--texto)}
+.partido .cat{font-size:11.5px;font-weight:600;color:var(--azul-osc);background:#eaf5ff;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.partido .nfotos{font-size:11.5px}
+
+.vacio{text-align:center;color:var(--suave);padding:40px 20px}
+.vacio img{width:90px;opacity:.85}
+.vacio p{margin:10px 0 16px}
+.vacio .btn{max-width:260px}
+
+/* Hojas (pantallas superpuestas) */
+.hoja{position:fixed;inset:0;z-index:50;background:var(--fondo);overflow-y:auto;padding-bottom:calc(24px + var(--sab));animation:sube .22s ease-out}
+@keyframes sube{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+.hoja-cab{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid var(--linea);display:flex;align-items:center;gap:6px;padding:calc(var(--sat) + 6px) 8px 6px}
+.hoja-cab h3{margin:0;font-size:17px}
+.cerrar{border:0;background:none;font-size:34px;line-height:1;width:44px;height:44px;color:var(--azul)}
+.buscar{display:block;width:calc(100% - 28px);margin:12px 14px;font:inherit;padding:12px 14px;border:1.5px solid var(--linea);border-radius:10px;background:#fff}
+.grilla-clubes{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;padding:0 14px}
+.club{border:2px solid transparent;background:#fff;border-radius:12px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11.5px;line-height:1.15;text-align:center;min-width:0}
+.club .escudo{width:74px;height:74px}
+.club span{overflow-wrap:anywhere}
+.club.usado{opacity:.35}
+
+/* Detalle */
+#d-cuerpo{padding:14px;max-width:720px;margin:0 auto}
+.d-cab{background:#fff;border-radius:var(--radio);padding:16px 12px;text-align:center}
+.d-equipos{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+.d-equipos .escudo{width:96px;height:96px;margin:0 auto 6px}
+.d-equipos .nombre{font-size:13px;font-weight:600}
+.d-meta{margin-top:12px;color:var(--suave);font-size:14px;display:flex;flex-direction:column;gap:4px}
+.d-meta b{color:var(--texto)}
+.d-seccion{background:#fff;border-radius:var(--radio);padding:14px;margin-top:12px}
+.d-seccion h4{margin:0 0 10px;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--suave)}
+.d-fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:10px}
+.d-fotos:empty{display:none}
+.d-fotos button{border:0;padding:0;aspect-ratio:3/4;border-radius:10px;overflow:hidden;background:#e9eef3}
+.d-fotos img{width:100%;height:100%;object-fit:cover}
+.confirmar{margin-top:10px;background:#fff5f4;border:1px solid #f3c2bd;border-radius:12px;padding:12px;text-align:center}
+.confirmar p{margin:0 0 10px}
+.confirmar .fila{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.confirmar .si{background:#d93025;color:#fff;border:0;border-radius:10px;padding:11px;font-weight:700}
+.confirmar .no{background:#fff;border:1.5px solid var(--linea);border-radius:10px;padding:11px;font-weight:600}
+
+/* Visor */
+.visor{position:fixed;inset:0;z-index:80;background:#000;display:flex;align-items:center;justify-content:center}
+.visor img{max-width:100%;max-height:100%;object-fit:contain}
+.visor button{position:absolute;border:0;background:rgba(255,255,255,.15);color:#fff;border-radius:50%;width:46px;height:46px;font-size:26px}
+.visor-cerrar{top:calc(var(--sat) + 12px);right:12px;font-size:20px!important}
+.visor-ant{left:10px;top:50%}
+.visor-sig{right:10px;top:50%}
+.visor-num{position:absolute;bottom:calc(var(--sab) + 16px);color:#fff;font-size:14px;background:rgba(0,0,0,.5);padding:4px 10px;border-radius:999px}
+
+.toast{position:fixed;left:50%;bottom:calc(140px + var(--sab));transform:translateX(-50%);z-index:90;background:#15202b;color:#fff;padding:12px 18px;border-radius:999px;font-weight:600;font-size:14.5px;box-shadow:0 6px 20px rgba(0,0,0,.25);white-space:nowrap}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.notas{width:100%;font:inherit;font-size:16px;line-height:1.4;padding:12px;border:1.5px solid var(--linea);border-radius:10px;background:#fff;color:var(--texto);resize:vertical;min-height:96px}
+.notas:focus,.fecha:focus,.buscar:focus{outline:2px solid var(--azul);outline-offset:-1px;border-color:var(--azul)}
+.notas-estado{font-size:12.5px;color:var(--suave);margin-top:6px;min-height:1em}
+.partido .nota-ico{font-size:11.5px}

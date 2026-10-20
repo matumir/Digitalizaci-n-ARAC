@@ -1,0 +1,14 @@
+{
+  "name": "arac-partidos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ARAC Partidos: registro de partidos dirigidos para árbitros de la ARAC San Francisco",
+  "dependencies": {
+    "@capacitor/android": "7.4.3",
+    "@capacitor/app": "^7.1.0",
+    "@capacitor/core": "7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.4.3"
+  }
+}

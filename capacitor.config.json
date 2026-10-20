@@ -1,0 +1,6 @@
+{
+  "appId": "com.arac.partidos",
+  "appName": "ARAC Partidos",
+  "webDir": "www",
+  "android": { "backgroundColor": "#ffffff" }
+}

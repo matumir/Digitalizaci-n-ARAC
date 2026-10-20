@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>ARAC Partidos</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- Pantalla de inicio -->
+<div id="splash" class="splash">
+  <img src="img/arac.png" alt="ARAC">
+  <p>Partidos dirigidos</p>
+</div>
+
+<header class="top">
+  <img src="img/arac.png" alt="ARAC — Asociación Regional de Árbitros Colegiados San Francisco">
+</header>
+
+<main>
+  <!-- ============ PARTIDOS ============ -->
+  <section id="v-partidos" class="vista">
+    <div class="ligas-tabs" id="ver-ligas"></div>
+    <div class="chips" id="ver-cats"></div>
+    <div class="chips chips-sub" id="ver-subs" hidden></div>
+    <div id="lista"></div>
+  </section>
+
+  <!-- ============ CARGAR ============ -->
+  <section id="v-cargar" class="vista" hidden>
+    <h1 class="titulo">Cargar partido</h1>
+
+    <div class="paso">
+      <h2>Liga</h2>
+      <div class="ligas-grid" id="c-ligas"></div>
+    </div>
+
+    <div class="paso" id="p-cat" hidden>
+      <h2>Categoría</h2>
+      <div class="chips chips-grandes" id="c-cats"></div>
+    </div>
+
+    <div class="paso" id="p-sub" hidden>
+      <h2 id="c-sub-titulo">División</h2>
+      <div class="chips chips-grandes" id="c-subs"></div>
+    </div>
+
+    <div class="paso" id="p-equipos" hidden>
+      <h2>Equipos</h2>
+      <div class="versus">
+        <button class="slot" id="slot-local" type="button"></button>
+        <span class="vs">VS</span>
+        <button class="slot" id="slot-visit" type="button"></button>
+      </div>
+    </div>
+
+    <div class="paso" id="p-fecha" hidden>
+      <h2>Fecha del partido</h2>
+      <input type="date" id="c-fecha" class="fecha">
+    </div>
+
+    <div class="paso" id="p-fotos" hidden>
+      <h2>Planillas y tarjetas <small>opcional</small></h2>
+      <div class="foto-botones">
+        <label class="btn-sec"><input type="file" accept="image/*" capture="environment" id="c-camara" hidden>📷 Sacar foto</label>
+        <label class="btn-sec"><input type="file" accept="image/*" multiple id="c-galeria" hidden>🖼️ Elegir de galería</label>
+      </div>
+      <div class="fotos-mini" id="c-fotos"></div>
+    </div>
+
+    <div class="paso" id="p-notas" hidden>
+      <h2>Anotaciones <small>opcional</small></h2>
+      <textarea id="c-notas" class="notas" rows="4" placeholder="Incidencias, expulsiones, demoras, observaciones…"></textarea>
+    </div>
+
+    <div class="guardar-barra" id="barra-guardar" hidden>
+      <button class="btn" id="btn-guardar" type="button">Guardar partido</button>
+    </div>
+  </section>
+</main>
+
+<nav class="tabbar">
+  <button type="button" data-vista="partidos" class="activa">
+    <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h16v2H4z"/></svg>
+    Partidos
+  </button>
+  <button type="button" data-vista="cargar">
+    <svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+    Cargar
+  </button>
+</nav>
+
+<!-- Selector de club -->
+<div class="hoja" id="h-club" hidden>
+  <div class="hoja-cab">
+    <button type="button" class="cerrar" data-cerrar>‹</button>
+    <h3 id="h-club-titulo">Elegí el equipo</h3>
+  </div>
+  <input type="search" id="h-club-buscar" class="buscar" placeholder="Buscar por nombre o iniciales">
+  <div class="grilla-clubes" id="h-club-grilla"></div>
+</div>
+
+<!-- Detalle de partido -->
+<div class="hoja" id="h-detalle" hidden>
+  <div class="hoja-cab">
+    <button type="button" class="cerrar" data-cerrar>‹</button>
+    <h3>Partido</h3>
+  </div>
+  <div id="d-cuerpo"></div>
+</div>
+
+<!-- Visor de fotos -->
+<div class="visor" id="visor" hidden>
+  <img id="visor-img" alt="Foto del partido">
+  <button type="button" class="visor-cerrar" data-cerrar>✕</button>
+  <button type="button" class="visor-ant" id="visor-ant">‹</button>
+  <button type="button" class="visor-sig" id="visor-sig">›</button>
+  <span class="visor-num" id="visor-num"></span>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="datos-clubes.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
