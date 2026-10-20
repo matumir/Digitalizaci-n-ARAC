@@ -172,7 +172,7 @@ window.CLUBES = [
 "id": "sf-29",
 "liga": "sf",
 "nombre": "C.A.P.U.",
-"fondo": "#cfcfcf"
+"fondo": "#f6f6f6"
 },
 {
 "id": "sf-30",
