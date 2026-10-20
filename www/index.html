@@ -3,20 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#f1f1ed">
 <title>ARAC Partidos</title>
+<script>
+  // Aplica el tema guardado antes de pintar, para que no parpadee.
+  try { var t = localStorage.getItem('arac-tema'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
 
 <!-- Pantalla de inicio -->
 <div id="splash" class="splash">
-  <img src="img/arac.png" alt="ARAC">
+  <span class="splash-logo"><img src="img/arac.png" alt="ARAC"></span>
   <p>Partidos dirigidos</p>
 </div>
 
-<header class="top">
-  <img src="img/arac.png" alt="ARAC — Asociación Regional de Árbitros Colegiados San Francisco">
+<header class="topbar">
+  <div class="topbar-title">
+    <span class="marca"><img src="img/arac.png" alt="ARAC — Asociación Regional de Árbitros Colegiados San Francisco"></span>
+    <h1 id="titulo-vista">Partidos</h1>
+  </div>
+  <button type="button" class="icon-btn" id="btn-ajustes" aria-label="Ajustes">
+    <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6a.5.5 0 0 0 .1-.6l-1.9-3.3a.5.5 0 0 0-.6-.2l-2.4 1a7.3 7.3 0 0 0-1.7-1l-.4-2.6a.5.5 0 0 0-.5-.4h-3.8a.5.5 0 0 0-.5.4l-.4 2.6a7.3 7.3 0 0 0-1.7 1l-2.4-1a.5.5 0 0 0-.6.2L2.5 8.8a.5.5 0 0 0 .1.6l2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6a.5.5 0 0 0-.1.6l1.9 3.3c.1.2.4.3.6.2l2.4-1c.5.4 1.1.7 1.7 1l.4 2.6c0 .2.3.4.5.4h3.8c.2 0 .5-.2.5-.4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.4 1c.2.1.5 0 .6-.2l1.9-3.3a.5.5 0 0 0-.1-.6zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+  </button>
 </header>
 
 <main>
@@ -30,25 +40,23 @@
 
   <!-- ============ CARGAR ============ -->
   <section id="v-cargar" class="vista" hidden>
-    <h1 class="titulo">Cargar partido</h1>
-
     <div class="paso">
-      <h2>Liga</h2>
+      <h2><span class="num">1</span>Liga</h2>
       <div class="ligas-grid" id="c-ligas"></div>
     </div>
 
     <div class="paso" id="p-cat" hidden>
-      <h2>Categoría</h2>
+      <h2><span class="num">2</span>Categoría</h2>
       <div class="chips chips-grandes" id="c-cats"></div>
     </div>
 
     <div class="paso" id="p-sub" hidden>
-      <h2 id="c-sub-titulo">División</h2>
+      <h2><span class="num">·</span><span id="c-sub-titulo">División</span></h2>
       <div class="chips chips-grandes" id="c-subs"></div>
     </div>
 
     <div class="paso" id="p-equipos" hidden>
-      <h2>Equipos</h2>
+      <h2><span class="num">3</span>Equipos</h2>
       <div class="versus">
         <button class="slot" id="slot-local" type="button"></button>
         <span class="vs">VS</span>
@@ -57,42 +65,42 @@
     </div>
 
     <div class="paso" id="p-resultado" hidden>
-      <h2>Resultado <small>opcional, también se puede cargar después</small></h2>
+      <h2><span class="num">4</span>Resultado <small>opcional, también se puede cargar después</small></h2>
       <div id="c-resultado"></div>
     </div>
 
     <div class="paso" id="p-fecha" hidden>
-      <h2>Fecha del partido</h2>
-      <input type="date" id="c-fecha" class="fecha">
+      <h2><span class="num">5</span>Fecha del partido</h2>
+      <input type="date" id="c-fecha" class="campo fecha">
     </div>
 
     <div class="paso" id="p-fotos" hidden>
-      <h2>Planillas y tarjetas <small>opcional</small></h2>
+      <h2><span class="num">6</span>Planillas y tarjetas <small>opcional</small></h2>
       <div class="foto-botones">
-        <label class="btn-sec"><input type="file" accept="image/*" capture="environment" id="c-camara" hidden>📷 Sacar foto</label>
-        <label class="btn-sec"><input type="file" accept="image/*" multiple id="c-galeria" hidden>🖼️ Elegir de galería</label>
+        <label class="btn btn-ghost"><input type="file" accept="image/*" capture="environment" id="c-camara" hidden><svg class="ico" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Sacar foto</label>
+        <label class="btn btn-ghost"><input type="file" accept="image/*" multiple id="c-galeria" hidden><svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m4 17 5-5 4 4 2.5-2.5L20 18"/></svg>Elegir de galería</label>
       </div>
       <div class="fotos-mini" id="c-fotos"></div>
     </div>
 
     <div class="paso" id="p-notas" hidden>
-      <h2>Anotaciones <small>opcional</small></h2>
-      <textarea id="c-notas" class="notas" rows="4" placeholder="Incidencias, expulsiones, demoras, observaciones…"></textarea>
+      <h2><span class="num">7</span>Anotaciones <small>opcional</small></h2>
+      <textarea id="c-notas" class="campo notas" rows="4" placeholder="Incidencias, expulsiones, demoras, observaciones…"></textarea>
     </div>
 
     <div class="guardar-barra" id="barra-guardar" hidden>
-      <button class="btn" id="btn-guardar" type="button">Guardar partido</button>
+      <button class="btn btn-primary btn-block" id="btn-guardar" type="button">Guardar partido</button>
     </div>
   </section>
 </main>
 
-<nav class="tabbar">
-  <button type="button" data-vista="partidos" class="activa">
-    <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h16v2H4z"/></svg>
+<nav class="bottomnav">
+  <button type="button" class="nav-btn activa" data-vista="partidos">
+    <svg viewBox="0 0 24 24"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></svg>
     Partidos
   </button>
-  <button type="button" data-vista="cargar">
-    <svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+  <button type="button" class="nav-btn nav-cargar" data-vista="cargar">
+    <span class="nav-mas"><svg viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></svg></span>
     Cargar
   </button>
 </nav>
@@ -100,29 +108,56 @@
 <!-- Selector de club -->
 <div class="hoja" id="h-club" hidden>
   <div class="hoja-cab">
-    <button type="button" class="cerrar" data-cerrar>‹</button>
+    <button type="button" class="icon-btn" data-cerrar aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
     <h3 id="h-club-titulo">Elegí el equipo</h3>
   </div>
-  <input type="search" id="h-club-buscar" class="buscar" placeholder="Buscar por nombre o iniciales">
+  <div class="buscar-wrap">
+    <svg class="buscar-ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+    <input type="search" id="h-club-buscar" class="buscar" placeholder="Buscar por nombre o iniciales">
+  </div>
   <div class="grilla-clubes" id="h-club-grilla"></div>
 </div>
 
 <!-- Detalle de partido -->
 <div class="hoja" id="h-detalle" hidden>
   <div class="hoja-cab">
-    <button type="button" class="cerrar" data-cerrar>‹</button>
+    <button type="button" class="icon-btn" data-cerrar aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
     <h3>Partido</h3>
   </div>
   <div id="d-cuerpo"></div>
 </div>
 
+<!-- Ajustes -->
+<div class="sheet-wrap" id="h-ajustes" hidden>
+  <div class="sheet-fondo" data-cerrar></div>
+  <div class="sheet" role="dialog" aria-label="Ajustes">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head">
+      <h2>Ajustes</h2>
+      <button type="button" class="icon-btn" data-cerrar aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div class="field">
+        <span class="field-label">Tema</span>
+        <div class="seg" role="group" aria-label="Tema">
+          <span class="seg-pastilla"></span>
+          <button type="button" class="seg-btn" data-tema="auto">Automático</button>
+          <button type="button" class="seg-btn" data-tema="light">Claro</button>
+          <button type="button" class="seg-btn" data-tema="dark">Oscuro</button>
+        </div>
+        <p class="field-help">Automático sigue el modo claro u oscuro del teléfono.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Visor de fotos -->
 <div class="visor" id="visor" hidden>
   <img id="visor-img" alt="Foto del partido">
-  <button type="button" class="visor-cerrar" data-cerrar>✕</button>
-  <button type="button" class="visor-borrar" id="visor-borrar" aria-label="Borrar foto">🗑</button>
-  <button type="button" class="visor-ant" id="visor-ant">‹</button>
-  <button type="button" class="visor-sig" id="visor-sig">›</button>
+  <button type="button" class="visor-cerrar" data-cerrar aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  <button type="button" class="visor-borrar" id="visor-borrar" aria-label="Borrar foto"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.5h4V7M6.5 7l1 12.5h9l1-12.5"/></svg></button>
+  <button type="button" class="visor-ant" id="visor-ant" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button type="button" class="visor-sig" id="visor-sig" aria-label="Siguiente"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></button>
   <span class="visor-num" id="visor-num"></span>
 </div>
 
