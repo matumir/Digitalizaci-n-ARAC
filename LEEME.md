@@ -30,6 +30,14 @@ inicia sesión en otro teléfono y aparecen ahí. La app funciona sin internet y
 
 Para las versiones siguientes alcanza con `git push`: se compila sola y aparece un Release nuevo.
 
+### En iPhone (versión web)
+iPhone no instala APKs: se usa la versión web, que se publica sola en cada `git push`
+(`.github/workflows/web.yml`) en **https://matumir.github.io/Digitalizaci-n-ARAC/app/**.
+1. Abrila en **Safari**, tocá **Compartir** y después **Agregar a pantalla de inicio**.
+2. Queda con su ícono, se abre a pantalla completa y funciona sin internet.
+Cuando hay una versión nueva, la app muestra *Hay una versión nueva · Actualizar*.
+También sirve en Android (Chrome → Instalar) y en la computadora.
+
 ## Dónde está cada cosa
 - `www/` — la app (HTML, CSS y JavaScript).
 - `www/datos-clubes.js` — lista de clubes por liga. Para corregir un nombre, editá el campo `nombre`.
@@ -39,6 +47,8 @@ Para las versiones siguientes alcanza con `git push`: se compila sola y aparece 
 - `www/vendor/` — Capacitor, sus plugins y supabase-js (copiados de `node_modules`, la app no usa bundler).
 - `www/sync.js` — sincronización de partidos y fotos con Supabase.
 - `supabase/setup.sql` — whitelist de cuentas. `supabase/sync.sql` — tablas, archivos y borrado de fotos a los 15 días.
+- `www/manifest.webmanifest`, `www/sw.js`, `www/pwa.js`, `www/icons/` — versión web instalable (PWA).
+- `scripts/preparar-web.mjs` — arma la versión web en `dist/` (lista de archivos para usar sin internet).
 - `android/` — proyecto Android (Capacitor 7).
 
 ## Inicio de sesión (Supabase + Google)
@@ -55,7 +65,8 @@ Sólo pueden entrar las cuentas que estén en la whitelist. Se configura una vez
    Copiá el **ID de cliente** y el **secreto**.
 3. **Supabase → Authentication → Sign In / Providers → Google**: activalo y pegá el ID y el secreto.
    En el mismo menú conviene **desactivar Email** (no se usa).
-4. **Supabase → Authentication → URL Configuration → Redirect URLs**: agregá `com.arac.partidos://login`.
+4. **Supabase → Authentication → URL Configuration → Redirect URLs**: agregá `com.arac.partidos://login`
+   (APK) y `https://matumir.github.io/Digitalizaci-n-ARAC/app/**` (versión web).
 5. **Supabase → SQL Editor**: pegá `supabase/setup.sql`, cambiá `tu-mail@gmail.com` por los mails reales y tocá *Run*.
 
 Para autorizar a alguien más: *SQL Editor* →

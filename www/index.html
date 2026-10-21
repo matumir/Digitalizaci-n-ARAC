@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f1f1ed">
 <title>ARAC Partidos</title>
+<!-- Versión web instalable (PWA): en iPhone, Compartir › Agregar a pantalla de inicio -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ARAC Partidos">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script>
   // Aplica el tema guardado antes de pintar, para que no parpadee.
   try { var t = localStorage.getItem('arac-tema'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
@@ -30,6 +38,7 @@
       <span>Continuar con Google</span>
     </button>
     <p class="login-msg" id="login-msg" role="status"></p>
+    <div class="instalar-ayuda" data-instalar hidden></div>
   </div>
 </div>
 
@@ -172,6 +181,10 @@
         </div>
         <p class="field-help">Automático sigue el modo claro u oscuro del teléfono.</p>
       </div>
+      <div class="field" id="aj-instalar" hidden>
+        <span class="field-label">Instalar la app</span>
+        <div class="instalar-ayuda" data-instalar></div>
+      </div>
       <div class="field" id="aj-sync" hidden>
         <span class="field-label">Sincronización</span>
         <div class="cuenta-fila">
@@ -219,6 +232,12 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<!-- Aviso de versión nueva (versión web) -->
+<div class="actualizar" id="actualizar" hidden>
+  <span>Hay una versión nueva de la app</span>
+  <button type="button" class="btn btn-primary" id="btn-actualizar">Actualizar</button>
+</div>
+
 <script src="vendor/capacitor.js"></script>
 <script src="vendor/cap-app.js"></script>
 <script src="vendor/cap-browser.js"></script>
@@ -230,5 +249,6 @@
 <script src="app.js"></script>
 <script src="sync.js"></script>
 <script src="auth.js"></script>
+<script src="pwa.js"></script>
 </body>
 </html>

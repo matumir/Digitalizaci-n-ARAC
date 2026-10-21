@@ -1094,7 +1094,20 @@ async function descargarFotos(p, fotos, boton) {
   if (boton) boton.disabled = true;
   try {
     if (!nativo) {
-      // Navegador: una descarga por foto
+      // Celular (versión web): el menú de compartir tiene "Guardar imagen", que las manda a Fotos.
+      // Se llama sin esperar nada antes, porque el navegador sólo lo permite justo después del toque.
+      const archivos = fotos.map((f, i) => new File([f.blob], `${carpeta} ${archivo(i)}`, { type: 'image/jpeg' }));
+      const movil = /iPhone|iPad|iPod|Android/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+      if (movil && navigator.canShare && navigator.canShare({ files: archivos })) {
+        try {
+          await navigator.share({ files: archivos, title: carpeta });
+        } catch (err) {
+          if (err && err.name === 'AbortError') { toast('No se guardaron las fotos'); return; }
+          throw err;
+        }
+        return;
+      }
+      // Computadora: una descarga por foto
       for (let i = 0; i < fotos.length; i++) {
         const url = URL.createObjectURL(fotos[i].blob);
         const a = el('a', { href: url, download: `${carpeta} ${archivo(i)}` });
