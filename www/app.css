@@ -683,3 +683,9 @@ body.sin-sesion .topbar, body.sin-sesion main, body.sin-sesion .bottomnav { visi
     transition-duration: .001ms !important;
   }
 }
+
+/* Errores del editor de incidencias */
+.inc-error { min-height: 1.2em; margin: -6px 2px 0; font-size: 0.82rem; font-weight: 560; color: var(--bad); }
+.inc-error:empty { display: none; }
+.inc-error:not(:empty) { animation: num-cambia var(--t-medio) var(--curva); }
+.campo.campo-error, .campo.campo-error:focus { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad); }

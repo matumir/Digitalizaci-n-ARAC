@@ -293,10 +293,10 @@ function opciones(cont, clave, items, crear, esSel) {
    gol: sub = normal | penal | en-contra (el gol cuenta para eq; en contra, num es del rival)
    cambio: num = sale, num2 = entra · min admite adición: "45+2" */
 const TIPOS_INC = {
-  amarilla: { nombre: 'Amarilla', titulo: 'Tarjeta amarilla' },
-  roja:     { nombre: 'Roja',     titulo: 'Tarjeta roja' },
-  gol:      { nombre: 'Gol',      titulo: 'Gol' },
-  cambio:   { nombre: 'Cambio',   titulo: 'Sustitución' },
+  amarilla: { nombre: 'Amarilla', titulo: 'Tarjeta amarilla', cargada: 'Tarjeta amarilla cargada' },
+  roja:     { nombre: 'Roja',     titulo: 'Tarjeta roja', cargada: 'Tarjeta roja cargada' },
+  gol:      { nombre: 'Gol',      titulo: 'Gol', cargada: 'Gol cargado' },
+  cambio:   { nombre: 'Cambio',   titulo: 'Sustitución', cargada: 'Sustitución cargada' },
 };
 const MOTIVOS = {
   amarilla: ['Juego brusco', 'Protestar', 'Conducta antideportiva', 'Demorar la reanudación', 'No respetar la distancia', 'Infracciones reiteradas', 'Entrar o salir sin permiso', 'Simular'],
@@ -387,9 +387,9 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
   const cuerpo = $('#inc-cuerpo'); cuerpo.innerHTML = '';
 
   const campoNum = (etiqueta, valor, ph) => {
-    const i = el('input', { type: 'text', inputmode: 'numeric', maxlength: 3, class: 'campo campo-num', placeholder: ph });
+    const i = el('input', { type: 'text', inputmode: 'numeric', maxlength: 2, class: 'campo campo-num', placeholder: ph });
     i.value = valor || '';
-    i.addEventListener('input', () => { i.value = i.value.replace(/\D/g, ''); });
+    i.addEventListener('input', () => { i.value = i.value.replace(/\D/g, '').slice(0, 2); validar(); });
     return [el('label', { class: 'field' }, el('span', { class: 'field-label' }, etiqueta), i), i];
   };
   const fila = el('div', { class: 'inc-campos' });
@@ -403,9 +403,14 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
     fila.append(a);
   }
   // Minuto: teclado de teléfono para poder escribir la adición (45+2)
-  const iMin = el('input', { type: 'text', inputmode: 'tel', maxlength: 6, class: 'campo campo-num', placeholder: tipo === 'cambio' ? 'Ej: 65' : 'Ej: 35 o 45+2' });
+  const iMin = el('input', { type: 'text', inputmode: 'tel', maxlength: 5, class: 'campo campo-num', placeholder: tipo === 'cambio' ? 'Ej: 65' : 'Ej: 35 o 45+2' });
   iMin.value = v.min || '';
-  iMin.addEventListener('input', () => { iMin.value = iMin.value.replace(/[^\d+]/g, '').replace(/\+{2,}/g, '+'); });
+  iMin.addEventListener('input', () => {
+    // Sólo dígitos y un "+": hasta 2 cifras de minuto y 2 de adición
+    const [base, ...resto] = iMin.value.replace(/[^\d+]/g, '').split('+');
+    iMin.value = base.slice(0, 2) + (resto.length ? '+' + resto.join('').slice(0, 2) : '');
+    validar();
+  });
   fila.append(el('label', { class: 'field' }, el('span', { class: 'field-label' }, 'Minuto'), iMin));
   cuerpo.append(fila);
 
@@ -435,7 +440,26 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
     cuerpo.append(el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Motivo'), iMotivo, sug));
   }
 
+  // Validación en vivo: marca el campo con error y no deja guardar
+  const error = el('p', { class: 'inc-error', role: 'alert' });
+  cuerpo.append(error);
+  let btnGuardar;
+  function validar() {
+    const problemas = [];
+    const marcar = (input, msg) => { input.classList.toggle('campo-error', !!msg); if (msg) problemas.push(msg); };
+    marcar(iNum, errorNumero(iNum.value));
+    if (iNum2) {
+      const mismo = iNum.value && iNum2.value && Number(iNum.value) === Number(iNum2.value);
+      marcar(iNum2, errorNumero(iNum2.value) || (mismo ? 'El jugador que entra no puede ser el mismo que sale.' : ''));
+    }
+    marcar(iMin, errorMinuto(iMin.value));
+    error.textContent = problemas[0] || '';
+    if (btnGuardar) btnGuardar.disabled = problemas.length > 0;
+    return problemas.length === 0;
+  }
+
   const guardarInc = () => {
+    if (!validar()) return;
     const nuevo = {
       id: existente ? existente.id : uid(), tipo, eq,
       num: iNum.value.trim(), num2: iNum2 ? iNum2.value.trim() : '',
@@ -447,7 +471,7 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
     sincronizarResultado(obj, antes);
     cerrarCapa();
     alGuardar(nuevo.id);
-    toast(existente ? 'Incidencia actualizada' : `${T.titulo} cargada`);
+    toast(existente ? 'Incidencia actualizada' : T.cargada);
   };
   const acciones = el('div', { class: 'inc-acciones' });
   if (existente) {
@@ -458,12 +482,38 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
       cerrarCapa(); alGuardar(); toast('Incidencia borrada');
     }, '¿Borrar?'));
   }
-  acciones.append(el('button', { type: 'button', class: 'btn btn-primary', onclick: guardarInc }, existente ? 'Guardar cambios' : 'Agregar'));
+  btnGuardar = el('button', { type: 'button', class: 'btn btn-primary', onclick: guardarInc }, existente ? 'Guardar cambios' : 'Agregar');
+  acciones.append(btnGuardar);
   cuerpo.append(acciones);
+  validar();
 
   abrirCapa('#h-inc');
   // En una carga nueva el cursor va directo al número
   if (!existente) setTimeout(() => iNum.focus(), 380);
+}
+
+// Minuto: de 1 a 90, con adición opcional de 1 a 20 (ej: 45+2, 90+5). Vacío vale (es opcional).
+const MINUTO_MAX = 90, ADICION_MAX = 20;
+function errorMinuto(texto) {
+  const t = String(texto || '').trim();
+  if (!t) return '';
+  const m = t.match(/^(\d{1,2})(?:\+(\d{0,2}))?$/);
+  if (!m) return 'Escribí el minuto así: 35 o 45+2.';
+  const base = Number(m[1]);
+  if (base < 1 || base > MINUTO_MAX) return `El minuto va de 1 a ${MINUTO_MAX}. Si hubo adición, escribila así: ${MINUTO_MAX}+3.`;
+  if (m[2] !== undefined) {
+    if (m[2] === '') return 'Falta la adición después del +.';
+    const ad = Number(m[2]);
+    if (ad < 1 || ad > ADICION_MAX) return `La adición va de 1 a ${ADICION_MAX} minutos.`;
+  }
+  return '';
+}
+// Número de camiseta: de 1 a 99. Vacío vale (es opcional).
+function errorNumero(texto) {
+  const t = String(texto || '').trim();
+  if (!t) return '';
+  const n = Number(t);
+  return Number.isInteger(n) && n >= 1 && n <= 99 ? '' : 'El número de jugador va de 1 a 99.';
 }
 
 /* Si el resultado estaba vacío o coincidía con los goles cargados, se actualiza solo.
