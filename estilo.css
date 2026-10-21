@@ -6,3 +6,4 @@ main{max-width:680px;margin:0 auto;padding:32px 16px 48px}
 h1{font-size:1.7rem;letter-spacing:-.02em;margin:20px 0 6px}h2{font-size:1.1rem;margin:28px 0 6px}
 p,li{color:var(--ink2)}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:4px 20px 16px;margin-top:20px}
 a{color:inherit}footer{margin-top:32px;font-size:.85rem;color:var(--ink2)}
+.boton{display:inline-block;margin-top:8px;padding:13px 22px;border-radius:999px;background:var(--ink);color:var(--page);text-decoration:none;font-weight:600}
