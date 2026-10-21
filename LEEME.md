@@ -2,7 +2,8 @@
 
 App para que los árbitros de la ARAC San Francisco registren los partidos que dirigen:
 liga, categoría, equipos, resultado, incidencias (tarjetas, goles y cambios), fotos de planillas y notas.
-Los partidos quedan guardados en el teléfono. Internet sólo hace falta para iniciar sesión.
+Los partidos se guardan en el teléfono y se sincronizan con la cuenta de cada árbitro:
+inicia sesión en otro teléfono y aparecen ahí. La app funciona sin internet y sube los cambios cuando vuelve la conexión.
 
 ## Cómo obtener el APK
 
@@ -36,7 +37,8 @@ Para las versiones siguientes alcanza con `git push`: se compila sola y aparece 
 - `www/img/ligas/` — logos de las ligas. `www/img/arac.png` — logo de la asociación.
 - `www/auth.js` — inicio de sesión con Google y whitelist. `www/config.js` — datos del proyecto de Supabase.
 - `www/vendor/` — Capacitor, sus plugins y supabase-js (copiados de `node_modules`, la app no usa bundler).
-- `supabase/setup.sql` — whitelist de cuentas (se corre en Supabase).
+- `www/sync.js` — sincronización de partidos y fotos con Supabase.
+- `supabase/setup.sql` — whitelist de cuentas. `supabase/sync.sql` — tablas, archivos y borrado de fotos a los 15 días.
 - `android/` — proyecto Android (Capacitor 7).
 
 ## Inicio de sesión (Supabase + Google)
@@ -61,6 +63,25 @@ Para autorizar a alguien más: *SQL Editor* →
 Para quitarlo: `delete from public.whitelist where email = 'mail@gmail.com';`
 (la próxima vez que abra la app con internet, se le cierra la sesión).
 
+## Sincronización entre teléfonos
+
+Se configura una vez, después del inicio de sesión:
+
+1. **SQL Editor**: pegá `supabase/sync.sql` y tocá *Run*.
+2. **Project Settings → API Keys → Secret keys**: copiá la clave `sb_secret_…` y, en una consulta nueva del SQL Editor, corré
+   `select vault.create_secret('sb_secret_…', 'arac_clave_secreta');`
+   (la clave queda cifrada en Supabase; no va en la app ni en este repositorio).
+3. Para probar el borrado automático: `select public.limpiar_fotos_viejas(15);` (devuelve cuántas fotos borró).
+
+Cómo funciona:
+- Cada árbitro ve sólo sus partidos. Si se lo saca de la whitelist, deja de ver y de subir.
+- Si el mismo partido se edita en dos teléfonos, queda el cambio más nuevo. Un partido o una foto borrados se borran en todos.
+- **Fotos**: se guardan en la nube 15 días (una tarea diaria a las 4:00 UTC borra las más viejas) para pasarlas a los otros
+  teléfonos. En los teléfonos que ya las tienen quedan siempre. Un teléfono nuevo recibe todos los partidos, pero sólo las
+  fotos de los últimos 15 días.
+- En un mismo teléfono, cada cuenta tiene sus partidos por separado.
+
 ## Importante
-Los partidos viven sólo en el teléfono: si se desinstala la app o se borran sus datos, se pierden.
-Las fotos se pueden bajar a la galería desde cada partido (botón *Descargar*).
+Los datos de los partidos quedan en la cuenta: si se pierde el teléfono, se recuperan iniciando sesión en otro.
+Las fotos de más de 15 días están sólo en los teléfonos: si se pierde el teléfono, se pierden.
+Para conservarlas, bajalas a la galería desde cada partido (botón *Descargar*).

@@ -38,9 +38,15 @@
     <span class="marca"><img src="img/arac.png" alt="ARAC — Asociación Regional de Árbitros Colegiados San Francisco"></span>
     <h1 id="titulo-vista">Partidos</h1>
   </div>
+  <div class="topbar-acciones">
+  <button type="button" class="icon-btn nube" id="btn-sync" aria-label="Sincronizar" hidden>
+    <svg viewBox="0 0 24 24"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/><path class="nube-ok" d="m9.5 13.8 1.9 1.9 3.6-3.7"/><path class="nube-flechas" d="M10 12.2a2.4 2.4 0 0 1 4.1-.9M14 15.4a2.4 2.4 0 0 1-4.1.9M14.3 10.3v1.3H13M9.7 17.3V16H11"/><path class="nube-x" d="M10.2 12.2l3.6 3.6M13.8 12.2l-3.6 3.6"/></svg>
+    <span class="nube-punto"></span>
+  </button>
   <button type="button" class="icon-btn" id="btn-ajustes" aria-label="Ajustes">
     <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6a.5.5 0 0 0 .1-.6l-1.9-3.3a.5.5 0 0 0-.6-.2l-2.4 1a7.3 7.3 0 0 0-1.7-1l-.4-2.6a.5.5 0 0 0-.5-.4h-3.8a.5.5 0 0 0-.5.4l-.4 2.6a7.3 7.3 0 0 0-1.7 1l-2.4-1a.5.5 0 0 0-.6.2L2.5 8.8a.5.5 0 0 0 .1.6l2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6a.5.5 0 0 0-.1.6l1.9 3.3c.1.2.4.3.6.2l2.4-1c.5.4 1.1.7 1.7 1l.4 2.6c0 .2.3.4.5.4h3.8c.2 0 .5-.2.5-.4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.4 1c.2.1.5 0 .6-.2l1.9-3.3a.5.5 0 0 0-.1-.6zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
   </button>
+  </div>
 </header>
 
 <main>
@@ -166,6 +172,14 @@
         </div>
         <p class="field-help">Automático sigue el modo claro u oscuro del teléfono.</p>
       </div>
+      <div class="field" id="aj-sync" hidden>
+        <span class="field-label">Sincronización</span>
+        <div class="cuenta-fila">
+          <span class="sync-texto"><b id="aj-sync-estado">—</b><span id="aj-sync-detalle"></span></span>
+          <button type="button" class="btn btn-ghost" id="btn-sync-ahora">Sincronizar ahora</button>
+        </div>
+        <p class="field-help">Tus partidos se guardan en tu cuenta y aparecen en cualquier teléfono donde inicies sesión. Las fotos quedan en la nube 15 días.</p>
+      </div>
       <div class="field" id="aj-cuenta" hidden>
         <span class="field-label">Cuenta</span>
         <div class="cuenta-fila">
@@ -214,6 +228,7 @@
 <script src="config.js"></script>
 <script src="datos-clubes.js"></script>
 <script src="app.js"></script>
+<script src="sync.js"></script>
 <script src="auth.js"></script>
 </body>
 </html>

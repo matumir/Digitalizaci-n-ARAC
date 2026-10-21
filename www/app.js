@@ -37,17 +37,25 @@ const tieneResultado = p => p.gl != null && p.gv != null;
 const textoMarcador = p => (tieneResultado(p) ? `${p.gl} – ${p.gv}` : 'vs');
 
 // ---------------- Base de datos ----------------
+/* Una base por cuenta ('arac-partidos-u-<id>'), así dos árbitros pueden usar el mismo teléfono.
+   Cada cambio hecho en el teléfono queda marcado (sucio + mod) hasta que se sube a la nube;
+   un borrado deja una marca en 'borrados' para que llegue a los otros teléfonos.
+   Fotos: blob = archivo en el teléfono; blob null = la foto existe pero ya no está en la nube
+   (se guarda 15 días) y no llegó a bajarse a este teléfono. */
 const DB = (() => {
-  let db;
+  let db = null, nombre = null;
+  const STORES = ['partidos', 'fotos', 'borrados', 'meta'];
   function abrir() {
+    if (!nombre) return Promise.reject(new Error('Sin sesión'));
     if (db) return Promise.resolve(db);
     return new Promise((ok, mal) => {
-      const r = indexedDB.open('arac-partidos', 1);
+      const r = indexedDB.open(nombre, 1);
       r.onupgradeneeded = () => {
         const d = r.result;
         d.createObjectStore('partidos', { keyPath: 'id' });
-        const f = d.createObjectStore('fotos', { keyPath: 'id' });
-        f.createIndex('partido', 'partido');
+        d.createObjectStore('fotos', { keyPath: 'id' }).createIndex('partido', 'partido');
+        d.createObjectStore('borrados', { keyPath: 'clave' });
+        d.createObjectStore('meta', { keyPath: 'k' });
       };
       r.onsuccess = () => { db = r.result; ok(db); };
       r.onerror = () => mal(r.error);
@@ -65,22 +73,139 @@ const DB = (() => {
     });
   }
   const req = r => new Promise((ok, mal) => { r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); });
+  const avisar = () => window.dispatchEvent(new Event('arac:cambio-local'));
+  const sucio = o => Object.assign(o, { mod: Date.now(), sucio: true });
+  // Al escribir, se ignoran los campos que la app agrega en memoria
+  const limpio = p => { const c = Object.assign({}, p); delete c._url; return c; };
+
+  // Partidos de la versión anterior (base sin cuenta): pasan a la primera cuenta que entra.
+  function abrirLegado() {
+    return new Promise(ok => {
+      let existia = true;
+      const r = indexedDB.open('arac-partidos');
+      r.onupgradeneeded = () => { existia = false; r.transaction.abort(); };
+      r.onsuccess = () => ok(existia ? r.result : (r.result.close(), null));
+      r.onerror = () => ok(null);
+    });
+  }
+  async function migrarLegado() {
+    const viejo = await abrirLegado();
+    if (!viejo) return 0;
+    let partidos = [], fotos = [];
+    if (viejo.objectStoreNames.contains('partidos')) {
+      const t = viejo.transaction(['partidos', 'fotos'], 'readonly');
+      [partidos, fotos] = await Promise.all([req(t.objectStore('partidos').getAll()), req(t.objectStore('fotos').getAll())]);
+    }
+    viejo.close();
+    if (partidos.length || fotos.length) {
+      await tx(['partidos', 'fotos'], 'readwrite', t => {
+        partidos.forEach(p => t.objectStore('partidos').put(Object.assign(p, { mod: p.creado || Date.now(), sucio: true })));
+        fotos.forEach(f => t.objectStore('fotos').put(Object.assign(f, { mod: Date.now(), sucio: true })));
+      });
+    }
+    await new Promise(ok => { const d = indexedDB.deleteDatabase('arac-partidos'); d.onsuccess = d.onerror = d.onblocked = () => ok(); });
+    return partidos.length;
+  }
+
   return {
+    usar(uid) { if (db) db.close(); db = null; nombre = uid ? 'arac-partidos-u-' + uid : null; },
+    activa: () => !!nombre,
+    migrarLegado,
+
+    // --- lo que usa la app ---
     partidos: () => tx(['partidos'], 'readonly', t => req(t.objectStore('partidos').getAll())),
-    guardar: (p, fotos) => tx(['partidos', 'fotos'], 'readwrite', t => {
-      t.objectStore('partidos').put(p);
-      fotos.forEach(f => t.objectStore('fotos').put(f));
+    guardar: async (p, fotos) => {
+      await tx(['partidos', 'fotos'], 'readwrite', t => {
+        t.objectStore('partidos').put(sucio(limpio(p)));
+        fotos.forEach(f => t.objectStore('fotos').put(sucio(f)));
+      });
+      avisar();
+    },
+    // Sólo las fotos que están en este teléfono
+    fotosDe: async id => (await tx(['fotos'], 'readonly', t => req(t.objectStore('fotos').index('partido').getAll(id)))).filter(f => f.blob),
+    fotosFaltantes: async id => (await tx(['fotos'], 'readonly', t => req(t.objectStore('fotos').index('partido').getAll(id)))).filter(f => !f.blob).length,
+    actualizar: async p => {
+      sucio(p);
+      await tx(['partidos'], 'readwrite', t => { t.objectStore('partidos').put(limpio(p)); });
+      avisar();
+    },
+    agregarFotos: async fotos => { await tx(['fotos'], 'readwrite', t => { fotos.forEach(f => t.objectStore('fotos').put(sucio(f))); }); avisar(); },
+    borrarFoto: async id => {
+      await tx(['fotos', 'borrados'], 'readwrite', async t => {
+        const f = await req(t.objectStore('fotos').get(id));
+        t.objectStore('fotos').delete(id);
+        if (f) t.objectStore('borrados').put({ clave: 'f:' + id, tipo: 'foto', id, partido: f.partido, orden: f.orden || 0, mod: Date.now() });
+      });
+      avisar();
+    },
+    borrarPartido: async id => {
+      await tx(['partidos', 'fotos', 'borrados'], 'readwrite', async t => {
+        t.objectStore('partidos').delete(id);
+        t.objectStore('borrados').put({ clave: 'p:' + id, tipo: 'partido', id, mod: Date.now() });
+        const fs = t.objectStore('fotos');
+        const lista = await req(fs.index('partido').getAll(id));
+        lista.forEach(f => {
+          fs.delete(f.id);
+          t.objectStore('borrados').put({ clave: 'f:' + f.id, tipo: 'foto', id: f.id, partido: id, orden: f.orden || 0, mod: Date.now() });
+        });
+      });
+      avisar();
+    },
+
+    // --- lo que usa la sincronización ---
+    pendientes: () => tx(STORES, 'readonly', async t => ({
+      partidos: (await req(t.objectStore('partidos').getAll())).filter(p => p.sucio),
+      fotos: (await req(t.objectStore('fotos').getAll())).filter(f => f.sucio && f.blob),
+      borrados: await req(t.objectStore('borrados').getAll()),
+    })),
+    // Quita la marca sólo si no hubo otro cambio mientras se subía
+    marcarSubido: (tipo, id, mod) => tx(['partidos', 'fotos', 'borrados'], 'readwrite', async t => {
+      if (tipo === 'borrado') {
+        const b = await req(t.objectStore('borrados').get(id));
+        if (b && b.mod === mod) t.objectStore('borrados').delete(id);
+        return;
+      }
+      const s = t.objectStore(tipo === 'partido' ? 'partidos' : 'fotos');
+      const o = await req(s.get(id));
+      if (o && o.mod === mod) { o.sucio = false; s.put(o); }
     }),
-    fotosDe: id => tx(['fotos'], 'readonly', t => req(t.objectStore('fotos').index('partido').getAll(id))),
-    actualizar: p => tx(['partidos'], 'readwrite', t => { t.objectStore('partidos').put(p); }),
-    agregarFotos: fotos => tx(['fotos'], 'readwrite', t => { fotos.forEach(f => t.objectStore('fotos').put(f)); }),
-    borrarFoto: id => tx(['fotos'], 'readwrite', t => { t.objectStore('fotos').delete(id); }),
-    borrarPartido: id => tx(['partidos', 'fotos'], 'readwrite', async t => {
-      t.objectStore('partidos').delete(id);
+    // Aplica un partido que llegó de la nube. Devuelve true si cambió algo en el teléfono.
+    aplicarPartido: row => tx(['partidos', 'fotos', 'borrados'], 'readwrite', async t => {
+      const ps = t.objectStore('partidos'), bs = t.objectStore('borrados');
+      const [local, marca] = await Promise.all([req(ps.get(row.id)), req(bs.get('p:' + row.id))]);
+      const mod = Number(row.mod);
+      if (row.borrado) {
+        if (local && local.sucio && local.mod > mod) return false;     // acá se editó después
+        if (!local) return false;
+        ps.delete(row.id);
+        const fs = t.objectStore('fotos');
+        (await req(fs.index('partido').getAllKeys(row.id))).forEach(k => fs.delete(k));
+        return true;
+      }
+      if (marca && marca.mod >= mod) return false;                      // acá se borró después
+      if (local && local.mod >= mod) return false;                      // ya está (o acá es más nuevo)
+      ps.put(Object.assign({}, row.datos || {}, { id: row.id, mod, sucio: false }));
+      if (marca) bs.delete('p:' + row.id);
+      return true;
+    }),
+    foto: id => tx(['fotos'], 'readonly', t => req(t.objectStore('fotos').get(id))),
+    aplicarFoto: (row, blob) => tx(['fotos', 'borrados'], 'readwrite', async t => {
       const fs = t.objectStore('fotos');
-      const ids = await req(fs.index('partido').getAllKeys(id));
-      ids.forEach(k => fs.delete(k));
+      const [local, marca] = await Promise.all([req(fs.get(row.id)), req(t.objectStore('borrados').get('f:' + row.id))]);
+      const mod = Number(row.mod);
+      if (row.borrado) {
+        if (!local || (local.sucio && local.mod > mod)) return false;
+        fs.delete(row.id);
+        return true;
+      }
+      if (marca && marca.mod >= mod) return false;
+      if (local && local.mod >= mod && (local.blob || !blob)) return false;
+      // Nunca se pierde un archivo que ya está en el teléfono
+      fs.put({ id: row.id, partido: row.partido, orden: row.orden, blob: blob || (local && local.blob) || null, mod: Math.max(mod, local ? local.mod : 0), sucio: false, subida: row.subida });
+      return true;
     }),
+    meta: k => tx(['meta'], 'readonly', async t => { const m = await req(t.objectStore('meta').get(k)); return m ? m.v : null; }),
+    ponerMeta: (k, v) => tx(['meta'], 'readwrite', t => { t.objectStore('meta').put({ k, v }); }),
   };
 })();
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
@@ -687,6 +812,7 @@ const ver = { liga: 'sf', cat: 'todas', sub: null };
 
 // animarLista: las filas entran escalonadas (al cambiar de vista o de filtro, no al volver del detalle).
 async function renderPartidos(animarLista = false) {
+  if (!DB.activa()) return;                     // todavía no hay sesión
   const todos = await DB.partidos();
   const cuentaLiga = id => todos.filter(p => p.liga === id).length;
   opciones($('#ver-ligas'), LIGAS.map(l => cuentaLiga(l.id)).join(), LIGAS, l => {
@@ -767,6 +893,7 @@ async function abrirDetalle(p) {
 async function pintarDetalle(p) {
   fotosVisor.forEach(f => URL.revokeObjectURL(f.url));
   const fotos = (await DB.fotosDe(p.id)).sort((a, b) => (a.orden || 0) - (b.orden || 0));
+  const faltantes = await DB.fotosFaltantes(p.id);
   fotosVisor = fotos.map(f => ({ id: f.id, url: URL.createObjectURL(f.blob) }));
   const c = $('#d-cuerpo'); c.innerHTML = '';
   const eq = id => el('div', {}, escudo(id), el('div', { class: 'nombre' }, CLUB[id] ? CLUB[id].nombre : '—'));
@@ -825,7 +952,11 @@ async function pintarDetalle(p) {
       el('label', { class: 'btn btn-ghost' }, inCam, icono(ICO_CAMARA), 'Sacar foto'),
       el('label', { class: 'btn btn-ghost' }, inGal, icono(ICO_GALERIA), 'Agregar de galería')),
     fotos.length ? el('button', { type: 'button', class: 'btn btn-ghost btn-block btn-descargar', onclick: e => descargarFotos(p, fotos, e.currentTarget) },
-      icono(ICO_DESCARGAR), fotos.length > 1 ? `Descargar las ${fotos.length} fotos` : 'Descargar la foto') : null));
+      icono(ICO_DESCARGAR), fotos.length > 1 ? `Descargar las ${fotos.length} fotos` : 'Descargar la foto') : null,
+    faltantes ? el('p', { class: 'fotos-aviso' }, faltantes === 1
+      ? 'Hay 1 foto más que ya no está en la nube: queda sólo en el teléfono donde se cargó.'
+      : `Hay ${faltantes} fotos más que ya no están en la nube: quedan sólo en el teléfono donde se cargaron.`) : null,
+    el('p', { class: 'fotos-nota' }, 'Las fotos se guardan en la nube 15 días para pasarlas a tus otros teléfonos; en este teléfono quedan siempre.')));
 
   // Incidencias por equipo: se guardan al instante
   const estadoInc = el('div', { class: 'notas-estado' });
@@ -985,8 +1116,82 @@ dosToques($('#visor-borrar'), async () => {
   });
 })();
 
+// ---------------- Sesión ----------------
+// auth.js avisa qué cuenta entró; cada cuenta usa su propia base en el teléfono.
+let cuentaActual = null;
+window.addEventListener('arac:sesion', async e => {
+  const { uid, cliente } = e.detail;
+  if (cuentaActual === uid) return;
+  cuentaActual = uid;
+  DB.usar(uid);
+  try {
+    const n = await DB.migrarLegado();
+    if (n) toast(n === 1 ? '1 partido pasó a tu cuenta' : `${n} partidos pasaron a tu cuenta`);
+  } catch (err) { /* si falla, los partidos viejos quedan donde estaban */ }
+  mostrarVista('partidos');
+  if (typeof Sync !== 'undefined') Sync.iniciar(cliente, uid);
+});
+window.addEventListener('arac:fin-sesion', () => {
+  cuentaActual = null;
+  if (typeof Sync !== 'undefined') Sync.detener();
+  DB.usar(null);
+  // Cierra lo que haya abierto y limpia lo de la cuenta anterior
+  pila.length = 0;
+  document.querySelectorAll('.hoja, .sheet-wrap, .visor').forEach(n => { n.hidden = true; n.classList.remove('se-va'); });
+  form.fotos.forEach(f => URL.revokeObjectURL(f.url));
+  Object.assign(form, { liga: null, cat: null, sub: null, local: null, visit: null, gl: null, gv: null, inc: [], fotos: [], notas: '' });
+  $('#lista').innerHTML = '';
+  syncEstado = null; pintarSync();
+});
+// Indicador de sincronización (nube de la barra superior y Ajustes)
+function haceCuanto(ms) {
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 45) return 'recién';
+  const m = Math.round(s / 60);
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.round(m / 60);
+  return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`;
+}
+let syncEstado = null;
+function pintarSync() {
+  const e = syncEstado, b = $('#btn-sync');
+  const activo = !!cuentaActual && !!e;
+  b.hidden = !activo; $('#aj-sync').hidden = !activo;
+  if (!activo) return;
+  const fase = e.fase === 'ok' && e.pendientes ? 'pendiente' : e.fase;
+  b.dataset.fase = fase;
+  const textos = {
+    sincronizando: ['Sincronizando…', ''],
+    ok: ['Al día', e.ultimo ? ' · ' + haceCuanto(e.ultimo) : ''],
+    pendiente: ['Con cambios sin subir', ` · ${e.pendientes}`],
+    'sin-conexion': ['Sin conexión', e.pendientes ? ` · ${e.pendientes} cambio${e.pendientes > 1 ? 's' : ''} para subir` : ''],
+    error: ['No se pudo sincronizar', e.pendientes ? ` · ${e.pendientes} pendiente${e.pendientes > 1 ? 's' : ''}` : ''],
+    inactivo: ['—', ''],
+  }[fase] || ['—', ''];
+  $('#aj-sync-estado').textContent = textos[0];
+  $('#aj-sync-detalle').textContent = textos[1];
+  b.setAttribute('aria-label', 'Sincronización: ' + textos[0]);
+  $('#btn-sync-ahora').disabled = fase === 'sincronizando';
+}
+window.addEventListener('arac:sync-estado', e => { syncEstado = e.detail; pintarSync(); });
+setInterval(() => { if (syncEstado && syncEstado.fase === 'ok') pintarSync(); }, 30000);   // "hace X min"
+const sincronizarYa = () => {
+  if (typeof Sync === 'undefined') return;
+  if (navigator.onLine === false) { toast('Sin conexión: se sincroniza solo al volver internet'); return; }
+  Sync.ahora();
+};
+$('#btn-sync').addEventListener('click', () => {
+  const f = $('#btn-sync').dataset.fase;
+  if (f === 'ok') toast('Todo sincronizado ✓'); else sincronizarYa();
+});
+$('#btn-sync-ahora').addEventListener('click', sincronizarYa);
+
+// La nube trajo cambios: repintar si no hay nada abierto encima
+window.addEventListener('arac:sync-cambios', () => {
+  if (!pila.length && vistaActual === 'partidos') renderPartidos();
+});
+
 // ---------------- Inicio ----------------
-renderPartidos(true);
 setTimeout(() => {
   const s = $('#splash');
   s.classList.add('fuera');

@@ -26,9 +26,10 @@
   const leer = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const guardar = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
 
-  let tSalida;
+  let tSalida, sesionActiva = false;
   function mostrarLogin(texto = '', esError = false) {
     clearTimeout(tSalida);                            // por si estaba terminando de ocultarse
+    if (sesionActiva) { sesionActiva = false; window.dispatchEvent(new Event('arac:fin-sesion')); }
     document.body.classList.add('sin-sesion');
     login.hidden = false;
     login.classList.remove('se-va');
@@ -37,9 +38,12 @@
     btn.disabled = false;
     $('#aj-cuenta').hidden = true;
   }
-  function entrar(email) {
+  function entrar(session, email) {
     $('#aj-mail').textContent = email;
     $('#aj-cuenta').hidden = false;
+    sesionActiva = true;
+    // La app abre la base de esta cuenta y arranca la sincronización
+    window.dispatchEvent(new CustomEvent('arac:sesion', { detail: { uid: session.user.id, email, cliente: sb } }));
     if (login.hidden) return;
     login.classList.add('se-va');
     tSalida = setTimeout(() => { login.hidden = true; login.classList.remove('se-va'); document.body.classList.remove('sin-sesion'); }, 260);
@@ -75,7 +79,7 @@
     if (!session) { mostrarLogin(); return; }
     const email = (session.user && session.user.email || '').toLowerCase();
     if (leer(CLAVE_OK) === email) {
-      entrar(email);                                  // ya autorizado acá: entra sin esperar a la red
+      entrar(session, email);                         // ya autorizado acá: entra sin esperar a la red
       const ok = await consultarWhitelist();          // y confirma en segundo plano
       if (ok === false) rechazar(email);
       return;
@@ -83,7 +87,7 @@
     mostrarLogin('Verificando la cuenta…');
     btn.disabled = true;
     const ok = await consultarWhitelist();
-    if (ok === true) { guardar(CLAVE_OK, email); entrar(email); }
+    if (ok === true) { guardar(CLAVE_OK, email); entrar(session, email); }
     else if (ok === false) rechazar(email);
     else mostrarLogin('Sin conexión. La primera vez hace falta internet para verificar la cuenta.', true);
   }
