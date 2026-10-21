@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f1f1ed">
+<title>ARAC Partidos</title>
+<!-- Versión web instalable (PWA): en iPhone, Compartir › Agregar a pantalla de inicio -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ARAC Partidos">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script>
+  // Aplica el tema guardado antes de pintar, para que no parpadee.
+  try { var t = localStorage.getItem('arac-tema'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- Pantalla de inicio -->
+<div id="splash" class="splash">
+  <span class="splash-logo"><img src="img/arac.png" alt="ARAC"></span>
+  <p>Partidos dirigidos</p>
+</div>
+
+<!-- Inicio de sesión -->
+<div id="login" class="login">
+  <div class="login-caja">
+    <span class="splash-logo login-logo"><img src="img/arac.png" alt="ARAC"></span>
+    <h1>ARAC Partidos</h1>
+    <p class="login-sub">Ingresá con tu cuenta de Google autorizada por la ARAC.</p>
+    <button type="button" class="btn btn-primary btn-block login-google" id="btn-google">
+      <svg class="g" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.3c0-.8-.1-1.5-.2-2.2H12v4.2h6a5.1 5.1 0 0 1-2.2 3.4v2.8h3.6c2-1.9 3.2-4.7 3.2-8.2z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.4-2.7l-3.6-2.8c-1 .7-2.3 1.1-3.8 1.1-2.9 0-5.4-2-6.3-4.6H2v2.9A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.7 14c-.2-.7-.4-1.4-.4-2.1s.1-1.4.4-2.1V7H2a11 11 0 0 0 0 9.9z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2 7l3.7 2.9C6.6 7.4 9.1 5.4 12 5.4z"/></svg>
+      <span>Continuar con Google</span>
+    </button>
+    <p class="login-msg" id="login-msg" role="status"></p>
+    <div class="instalar-ayuda" data-instalar hidden></div>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="topbar-title">
+    <span class="marca"><img src="img/arac.png" alt="ARAC — Asociación Regional de Árbitros Colegiados San Francisco"></span>
+    <h1 id="titulo-vista">Partidos</h1>
+  </div>
+  <div class="topbar-acciones">
+  <button type="button" class="icon-btn nube" id="btn-sync" aria-label="Sincronizar" hidden>
+    <svg viewBox="0 0 24 24"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/><path class="nube-ok" d="m9.5 13.8 1.9 1.9 3.6-3.7"/><path class="nube-flechas" d="M10 12.2a2.4 2.4 0 0 1 4.1-.9M14 15.4a2.4 2.4 0 0 1-4.1.9M14.3 10.3v1.3H13M9.7 17.3V16H11"/><path class="nube-x" d="M10.2 12.2l3.6 3.6M13.8 12.2l-3.6 3.6"/></svg>
+    <span class="nube-punto"></span>
+  </button>
+  <button type="button" class="icon-btn" id="btn-ajustes" aria-label="Ajustes">
+    <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6a.5.5 0 0 0 .1-.6l-1.9-3.3a.5.5 0 0 0-.6-.2l-2.4 1a7.3 7.3 0 0 0-1.7-1l-.4-2.6a.5.5 0 0 0-.5-.4h-3.8a.5.5 0 0 0-.5.4l-.4 2.6a7.3 7.3 0 0 0-1.7 1l-2.4-1a.5.5 0 0 0-.6.2L2.5 8.8a.5.5 0 0 0 .1.6l2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6a.5.5 0 0 0-.1.6l1.9 3.3c.1.2.4.3.6.2l2.4-1c.5.4 1.1.7 1.7 1l.4 2.6c0 .2.3.4.5.4h3.8c.2 0 .5-.2.5-.4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.4 1c.2.1.5 0 .6-.2l1.9-3.3a.5.5 0 0 0-.1-.6zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+  </button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ PARTIDOS ============ -->
+  <section id="v-partidos" class="vista">
+    <div class="ligas-tabs" id="ver-ligas"></div>
+    <div class="chips" id="ver-cats"></div>
+    <div class="chips chips-sub" id="ver-subs" hidden></div>
+    <div id="lista"></div>
+  </section>
+
+  <!-- ============ CARGAR ============ -->
+  <section id="v-cargar" class="vista" hidden>
+    <div class="paso">
+      <h2><span class="num">1</span>Liga</h2>
+      <div class="ligas-grid" id="c-ligas"></div>
+    </div>
+
+    <div class="paso" id="p-cat" hidden>
+      <h2><span class="num">2</span>Categoría</h2>
+      <div class="chips chips-grandes" id="c-cats"></div>
+    </div>
+
+    <div class="paso" id="p-sub" hidden>
+      <h2><span class="num">·</span><span id="c-sub-titulo">División</span></h2>
+      <div class="chips chips-grandes" id="c-subs"></div>
+    </div>
+
+    <div class="paso" id="p-equipos" hidden>
+      <h2><span class="num">3</span>Equipos</h2>
+      <div class="versus">
+        <button class="slot" id="slot-local" type="button"></button>
+        <span class="vs">VS</span>
+        <button class="slot" id="slot-visit" type="button"></button>
+      </div>
+    </div>
+
+    <div class="paso" id="p-resultado" hidden>
+      <h2><span class="num">4</span>Resultado <small>opcional, también se puede cargar después</small></h2>
+      <div id="c-resultado"></div>
+    </div>
+
+    <div class="paso" id="p-fecha" hidden>
+      <h2><span class="num">5</span>Fecha del partido</h2>
+      <input type="date" id="c-fecha" class="campo fecha">
+    </div>
+
+    <div class="paso" id="p-fotos" hidden>
+      <h2><span class="num">6</span>Planillas y tarjetas <small>opcional</small></h2>
+      <div class="foto-botones">
+        <label class="btn btn-ghost"><input type="file" accept="image/*" capture="environment" id="c-camara" hidden><svg class="ico" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Sacar foto</label>
+        <label class="btn btn-ghost"><input type="file" accept="image/*" multiple id="c-galeria" hidden><svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m4 17 5-5 4 4 2.5-2.5L20 18"/></svg>Elegir de galería</label>
+      </div>
+      <div class="fotos-mini" id="c-fotos"></div>
+    </div>
+
+    <div class="paso" id="p-inc" hidden>
+      <h2><span class="num">7</span>Incidencias <small>opcional: tarjetas, goles y cambios de cada equipo</small></h2>
+      <div id="c-inc"></div>
+    </div>
+
+    <div class="paso" id="p-notas" hidden>
+      <h2><span class="num">8</span>Notas <small>opcional</small></h2>
+      <textarea id="c-notas" class="campo notas" rows="4" placeholder="Algo más para anotar: demoras, estado de la cancha, observaciones…"></textarea>
+    </div>
+
+    <div class="guardar-barra" id="barra-guardar" hidden>
+      <button class="btn btn-primary btn-block" id="btn-guardar" type="button">Guardar partido</button>
+    </div>
+  </section>
+</main>
+
+<nav class="bottomnav">
+  <button type="button" class="nav-btn activa" data-vista="partidos">
+    <svg viewBox="0 0 24 24"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></svg>
+    Partidos
+  </button>
+  <button type="button" class="nav-btn nav-cargar" data-vista="cargar">
+    <span class="nav-mas"><svg viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></svg></span>
+    Cargar
+  </button>
+</nav>
+
+<!-- Selector de club -->
+<div class="hoja" id="h-club" hidden>
+  <div class="hoja-cab">
+    <button type="button" class="icon-btn" data-cerrar aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h3 id="h-club-titulo">Elegí el equipo</h3>
+  </div>
+  <div class="buscar-wrap">
+    <svg class="buscar-ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+    <input type="search" id="h-club-buscar" class="buscar" placeholder="Buscar por nombre o iniciales">
+  </div>
+  <div class="grilla-clubes" id="h-club-grilla"></div>
+</div>
+
+<!-- Detalle de partido -->
+<div class="hoja" id="h-detalle" hidden>
+  <div class="hoja-cab">
+    <button type="button" class="icon-btn" data-cerrar aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h3>Partido</h3>
+  </div>
+  <div id="d-cuerpo"></div>
+</div>
+
+<!-- Ajustes -->
+<div class="sheet-wrap" id="h-ajustes" hidden>
+  <div class="sheet-fondo" data-cerrar></div>
+  <div class="sheet" role="dialog" aria-label="Ajustes">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head">
+      <h2>Ajustes</h2>
+      <button type="button" class="icon-btn" data-cerrar aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div class="field">
+        <span class="field-label">Tema</span>
+        <div class="seg" role="group" aria-label="Tema">
+          <span class="seg-pastilla"></span>
+          <button type="button" class="seg-btn" data-tema="auto">Automático</button>
+          <button type="button" class="seg-btn" data-tema="light">Claro</button>
+          <button type="button" class="seg-btn" data-tema="dark">Oscuro</button>
+        </div>
+        <p class="field-help">Automático sigue el modo claro u oscuro del teléfono.</p>
+      </div>
+      <div class="field" id="aj-instalar" hidden>
+        <span class="field-label">Instalar la app</span>
+        <div class="instalar-ayuda" data-instalar></div>
+      </div>
+      <div class="field" id="aj-sync" hidden>
+        <span class="field-label">Sincronización</span>
+        <div class="cuenta-fila">
+          <span class="sync-texto"><b id="aj-sync-estado">—</b><span id="aj-sync-detalle"></span></span>
+          <button type="button" class="btn btn-ghost" id="btn-sync-ahora">Sincronizar ahora</button>
+        </div>
+        <p class="field-help">Tus partidos se guardan en tu cuenta y aparecen en cualquier teléfono donde inicies sesión. Las fotos quedan en la nube 15 días.</p>
+      </div>
+      <div class="field" id="aj-cuenta" hidden>
+        <span class="field-label">Cuenta</span>
+        <div class="cuenta-fila">
+          <span class="cuenta-mail" id="aj-mail"></span>
+          <button type="button" class="btn btn-ghost" id="btn-salir">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cargar / editar una incidencia -->
+<div class="sheet-wrap" id="h-inc" hidden>
+  <div class="sheet-fondo" data-cerrar></div>
+  <div class="sheet" role="dialog" aria-labelledby="inc-titulo">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head">
+      <div>
+        <h2 id="inc-titulo">Incidencia</h2>
+        <p class="sheet-sub" id="inc-equipo"></p>
+      </div>
+      <button type="button" class="icon-btn" data-cerrar aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="sheet-body" id="inc-cuerpo"></div>
+  </div>
+</div>
+
+<!-- Visor de fotos -->
+<div class="visor" id="visor" hidden>
+  <img id="visor-img" alt="Foto del partido">
+  <button type="button" class="visor-cerrar" data-cerrar aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  <button type="button" class="visor-borrar" id="visor-borrar" aria-label="Borrar foto"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.5h4V7M6.5 7l1 12.5h9l1-12.5"/></svg></button>
+  <button type="button" class="visor-ant" id="visor-ant" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button type="button" class="visor-sig" id="visor-sig" aria-label="Siguiente"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></button>
+  <span class="visor-num" id="visor-num"></span>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<!-- Aviso de versión nueva (versión web) -->
+<div class="actualizar" id="actualizar" hidden>
+  <span>Hay una versión nueva de la app</span>
+  <button type="button" class="btn btn-primary" id="btn-actualizar">Actualizar</button>
+</div>
+
+<script src="vendor/capacitor.js"></script>
+<script src="vendor/cap-app.js"></script>
+<script src="vendor/cap-browser.js"></script>
+<script src="vendor/cap-filesystem.js"></script>
+<script src="vendor/cap-share.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="config.js"></script>
+<script src="datos-clubes.js"></script>
+<script src="app.js"></script>
+<script src="sync.js"></script>
+<script src="auth.js"></script>
+<script src="pwa.js"></script>
+</body>
+</html>
