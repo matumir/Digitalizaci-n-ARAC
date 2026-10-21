@@ -714,3 +714,14 @@ body.sin-sesion .topbar, body.sin-sesion main, body.sin-sesion .bottomnav { visi
 #aj-sync .btn:disabled { opacity: .5; }
 .fotos-aviso { margin: 10px 2px 0; font-size: 0.8rem; color: var(--ink-2); line-height: 1.4; }
 .fotos-nota { margin: 10px 2px 0; font-size: 0.74rem; color: var(--ink-muted); line-height: 1.4; }
+
+/* Doble amarilla: la amarilla con la roja encima */
+.tarjetas-doble { position: relative; width: 20px; height: 20px; display: block; }
+.tarjetas-doble .tarjeta { position: absolute; top: 0; }
+.tarjetas-doble .amarilla { left: 0; transform: rotate(-10deg); }
+.tarjetas-doble .roja { left: 6px; top: 2px; transform: rotate(10deg); }
+.inc-fila.doble .inc-txt span:first-of-type { color: var(--bad); }
+.inc-aviso { margin: -6px 2px 0; font-size: 0.82rem; font-weight: 560; color: var(--ink-2); }
+.inc-aviso:empty { display: none; }
+.inc-aviso:not(:empty) { animation: num-cambia var(--t-medio) var(--curva); }
+.inc-aviso:not(:empty)::before { content: ''; display: inline-block; width: 9px; height: 12px; border-radius: 2px; background: #e03a2f; margin-right: 7px; vertical-align: -1px; }

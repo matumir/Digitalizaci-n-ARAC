@@ -425,13 +425,16 @@ const TIPOS_INC = {
 };
 const MOTIVOS = {
   amarilla: ['Juego brusco', 'Protestar', 'Conducta antideportiva', 'Demorar la reanudación', 'No respetar la distancia', 'Infracciones reiteradas', 'Entrar o salir sin permiso', 'Simular'],
-  roja: ['Doble amarilla', 'Juego brusco grave', 'Conducta violenta', 'Escupir', 'Evitar un gol con la mano', 'Evitar ocasión manifiesta de gol', 'Lenguaje ofensivo o insultos'],
+  // (la doble amarilla no va acá: se registra sola al cargar la segunda amarilla)
+  roja: ['Juego brusco grave', 'Conducta violenta', 'Escupir', 'Evitar un gol con la mano', 'Evitar ocasión manifiesta de gol', 'Lenguaje ofensivo o insultos'],
 };
 const SUB_GOL = [['normal', 'Jugada'], ['penal', 'De penal'], ['en-contra', 'En contra']];
 
 const ICONOS_INC = {
   amarilla: '<span class="tarjeta amarilla"></span>',
   roja: '<span class="tarjeta roja"></span>',
+  // Segunda amarilla: amarilla con la roja encima
+  doble: '<span class="tarjetas-doble"><span class="tarjeta amarilla"></span><span class="tarjeta roja"></span></span>',
   gol: '<svg viewBox="0 0 24 24" class="ico-inc"><circle cx="12" cy="12" r="8.5"/><path d="m12 7.8 3.1 2.3-1.2 3.6h-3.8l-1.2-3.6zM12 7.8V3.6M15.1 10.1l3.9-1.3M13.9 13.7l2.4 3.4M10.1 13.7l-2.4 3.4M8.9 10.1 5 8.8"/></svg>',
   cambio: '<svg viewBox="0 0 24 24" class="ico-inc"><path d="M7 4v13M3.5 13.5 7 17l3.5-3.5M17 20V7M13.5 10.5 17 7l3.5 3.5"/></svg>',
 };
@@ -455,10 +458,63 @@ function textoInc(i) {
 }
 function resumenInc(inc) {
   const n = t => (inc || []).filter(i => i.tipo === t).length;
+  // La doble amarilla cuenta también como roja (expulsión)
+  const rojas = n('roja') + segundasAmarillas(inc).size;
   const partes = [];
   if (n('amarilla')) partes.push(`${n('amarilla')} amarilla${n('amarilla') > 1 ? 's' : ''}`);
-  if (n('roja')) partes.push(`${n('roja')} roja${n('roja') > 1 ? 's' : ''}`);
+  if (rojas) partes.push(`${rojas} roja${rojas > 1 ? 's' : ''}`);
   return partes.join(' · ');
+}
+
+// ---- Tarjetas por jugador (mismo equipo y mismo número) ----
+const mismoJugador = (a, b) => a.eq === b.eq && a.num && b.num && Number(a.num) === Number(b.num);
+const esTarjeta = i => i.tipo === 'amarilla' || i.tipo === 'roja';
+// Ordena por minuto; las que no tienen minuto van al final, en el orden en que se cargaron
+const porMinuto = lista => lista.map((x, k) => [x, k]).sort((a, b) => (valorMinuto(a[0].min) - valorMinuto(b[0].min)) || (a[1] - b[1])).map(x => x[0]);
+
+/* Ids de las amarillas que son la segunda de su jugador: se muestran con la roja
+   y cuentan como expulsión. Se calculan siempre, así se acomodan solas si se
+   edita el minuto o se borra una amarilla. */
+function segundasAmarillas(inc) {
+  const ids = new Set(), vistos = [];
+  porMinuto((inc || []).filter(i => i.tipo === 'amarilla' && i.num)).forEach(a => {
+    const previas = vistos.filter(v => mismoJugador(v, a)).length;
+    if (previas === 1) ids.add(a.id);
+    vistos.push(a);
+  });
+  return ids;
+}
+
+/* Reglas de tarjetas para una tarjeta nueva o editada (cand) frente a las demás del jugador:
+   - una sola expulsión: roja directa o doble amarilla, nunca las dos ni dos rojas;
+   - como mucho dos amarillas;
+   - después del minuto de la expulsión no puede recibir ninguna tarjeta.
+   Devuelve { error } o { aviso } (cuando la amarilla nueva es la segunda). */
+function revisarTarjeta(inc, cand) {
+  if (!esTarjeta(cand) || !cand.num) return {};
+  const otras = (inc || []).filter(i => i.id !== cand.id && esTarjeta(i) && mismoJugador(i, cand));
+  const quien = `El N° ${Number(cand.num)}`;
+  const amas = porMinuto(otras.filter(i => i.tipo === 'amarilla'));
+  const roja = otras.find(i => i.tipo === 'roja');
+  const enMin = i => (i.min ? ` en el ${textoMinuto(i.min)}` : '');
+  const despues = (a, b) => a.min && b.min && valorMinuto(a.min) > valorMinuto(b.min);   // a fue después de b
+  if (cand.tipo === 'roja') {
+    if (roja) return { error: `${quien} ya tiene una roja${enMin(roja)}.` };
+    if (amas.length >= 2) return { error: `${quien} ya fue expulsado por doble amarilla${enMin(amas[1])}.` };
+    const tarde = amas.find(a => despues(a, cand));
+    if (tarde) return { error: `${quien} tiene una amarilla${enMin(tarde)}, después de esta roja: un expulsado no puede recibir tarjetas.` };
+    return {};
+  }
+  if (amas.length >= 2) return { error: `${quien} ya tiene dos amarillas: fue expulsado${enMin(amas[1])}.` };
+  if (roja) {
+    if (amas.length === 1) return { error: `${quien} ya fue expulsado con roja${enMin(roja)}.` };
+    if (despues(cand, roja)) return { error: `${quien} fue expulsado${enMin(roja)}: no puede recibir tarjetas después.` };
+    return {};
+  }
+  if (amas.length === 1) {
+    return { aviso: `Con esta, el N° ${Number(cand.num)} suma dos amarillas: se registra la roja por doble amarilla.` };
+  }
+  return {};
 }
 
 /* Sección de incidencias dividida en local y visitante.
@@ -468,17 +524,20 @@ function seccionIncidencias(obj, alCambiar) {
   const cont = el('div', { class: 'inc-equipos' });
   const pintar = (resaltar) => {
     cont.innerHTML = '';
+    const dobles = segundasAmarillas(obj.inc);
     ['local', 'visit'].forEach(eq => {
       const id = obj[eq];
       const lista = (obj.inc || []).filter(i => i.eq === eq).sort((a, b) => valorMinuto(a.min) - valorMinuto(b.min));
       const filas = el('div', { class: 'inc-lista' });
       lista.forEach(i => {
-        const fila = el('button', { type: 'button', class: 'inc-fila' + (i.id === resaltar ? ' entra' : ''), onclick: () => editorInc(obj, eq, i.tipo, i, pintarYAvisar) },
+        const doble = dobles.has(i.id);
+        const detalle = [doble ? 'Roja por doble amarilla' : '', i.motivo].filter(Boolean).join(' · ');
+        const fila = el('button', { type: 'button', class: 'inc-fila' + (doble ? ' doble' : '') + (i.id === resaltar ? ' entra' : ''), onclick: () => editorInc(obj, eq, i.tipo, i, pintarYAvisar) },
           el('span', { class: 'inc-ico' }), el('span', { class: 'inc-txt' },
             el('b', {}, textoInc(i)),
-            i.motivo ? el('span', {}, i.motivo) : null),
+            detalle ? el('span', {}, detalle) : null),
           el('span', { class: 'inc-min' }, textoMinuto(i.min)));
-        fila.querySelector('.inc-ico').innerHTML = ICONOS_INC[i.tipo];
+        fila.querySelector('.inc-ico').innerHTML = doble ? ICONOS_INC.doble : ICONOS_INC[i.tipo];
         filas.append(fila);
       });
       const botones = el('div', { class: 'inc-botones' });
@@ -567,8 +626,10 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
 
   // Validación en vivo: marca el campo con error y no deja guardar
   const error = el('p', { class: 'inc-error', role: 'alert' });
-  cuerpo.append(error);
+  const aviso = el('p', { class: 'inc-aviso' });
+  cuerpo.append(error, aviso);
   let btnGuardar;
+  const candidata = () => ({ id: existente ? existente.id : '(nueva)', tipo, eq, num: iNum.value.trim(), min: iMin.value.trim().replace(/\+$/, '') });
   function validar() {
     const problemas = [];
     const marcar = (input, msg) => { input.classList.toggle('campo-error', !!msg); if (msg) problemas.push(msg); };
@@ -578,7 +639,14 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
       marcar(iNum2, errorNumero(iNum2.value) || (mismo ? 'El jugador que entra no puede ser el mismo que sale.' : ''));
     }
     marcar(iMin, errorMinuto(iMin.value));
+    // Reglas de tarjetas (doble amarilla, expulsados) con las otras tarjetas del jugador
+    let r = {};
+    if (!problemas.length) {
+      r = revisarTarjeta(obj.inc, candidata());
+      if (r.error) marcar(iNum, r.error);
+    }
     error.textContent = problemas[0] || '';
+    aviso.textContent = problemas.length ? '' : (r.aviso || '');
     if (btnGuardar) btnGuardar.disabled = problemas.length > 0;
     return problemas.length === 0;
   }
@@ -596,7 +664,8 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
     sincronizarResultado(obj, antes);
     cerrarCapa();
     alGuardar(nuevo.id);
-    toast(existente ? 'Incidencia actualizada' : T.cargada);
+    const doble = tipo === 'amarilla' && segundasAmarillas(obj.inc).has(nuevo.id);
+    toast(doble ? `Doble amarilla: roja para el N° ${Number(nuevo.num)}` : (existente ? 'Incidencia actualizada' : T.cargada));
   };
   const acciones = el('div', { class: 'inc-acciones' });
   if (existente) {
