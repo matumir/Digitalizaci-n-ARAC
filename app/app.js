@@ -428,6 +428,12 @@ const MOTIVOS = {
   // (la doble amarilla no va acá: se registra sola al cargar la segunda amarilla)
   roja: ['Juego brusco grave', 'Conducta violenta', 'Escupir', 'Evitar un gol con la mano', 'Evitar ocasión manifiesta de gol', 'Lenguaje ofensivo o insultos'],
 };
+// Los que se le pueden sancionar a un suplente o a un jugador que ya salió (fuera del juego)
+const MOTIVOS_SUPLENTE = {
+  amarilla: ['Protestar', 'Conducta antideportiva', 'Demorar la reanudación', 'Entrar o salir sin permiso'],
+  roja: ['Conducta violenta', 'Escupir', 'Lenguaje ofensivo o insultos'],
+};
+const motivoDeSuplente = t => !MOTIVOS[t.tipo].includes(t.motivo) || MOTIVOS_SUPLENTE[t.tipo].includes(t.motivo);
 const SUB_GOL = [['normal', 'Jugada'], ['penal', 'De penal'], ['en-contra', 'En contra']];
 
 const ICONOS_INC = {
@@ -466,11 +472,41 @@ function resumenInc(inc) {
   return partes.join(' · ');
 }
 
-// ---- Tarjetas por jugador (mismo equipo y mismo número) ----
-const mismoJugador = (a, b) => a.eq === b.eq && a.num && b.num && Number(a.num) === Number(b.num);
+// ---- Incidencias por jugador (mismo equipo y mismo número; en un cambio, el que sale) ----
+const rival = eq => (eq === 'local' ? 'visit' : 'local');
+// En un gol en contra el número es de un jugador del rival
+const equipoDe = i => (i.tipo === 'gol' && i.sub === 'en-contra' ? rival(i.eq) : i.eq);
+const mismoJugador = (a, b) => equipoDe(a) === equipoDe(b) && a.num && b.num && Number(a.num) === Number(b.num);
 const esTarjeta = i => i.tipo === 'amarilla' || i.tipo === 'roja';
 // Ordena por minuto; las que no tienen minuto van al final, en el orden en que se cargaron
 const porMinuto = lista => lista.map((x, k) => [x, k]).sort((a, b) => (valorMinuto(a[0].min) - valorMinuto(b[0].min)) || (a[1] - b[1])).map(x => x[0]);
+const antesDe = (a, b) => a.min && b.min && valorMinuto(a.min) < valorMinuto(b.min);   // a fue antes que b
+// Cambios en los que salió o entró el jugador, por minuto; salidaDe / entradaDe: el primero con minuto
+const salidasDe = (lista, jug) => porMinuto((lista || []).filter(i => i.tipo === 'cambio' && mismoJugador(i, jug)));
+const entradasDe = (lista, jug) => porMinuto((lista || []).filter(i => i.tipo === 'cambio' && i.num2 && jug.num &&
+  i.eq === equipoDe(jug) && Number(i.num2) === Number(jug.num)));
+const salidaDe = (lista, jug) => salidasDe(lista, jug).find(i => i.min);
+const entradaDe = (lista, jug) => entradasDe(lista, jug).find(i => i.min);
+// Jugadores que protagonizan una incidencia; en un cambio, el que sale (num) y el que entra (num2)
+const jugadoresDe = i => [
+  i.num && { eq: equipoDe(i), num: i.num, campo: 'num' },
+  i.tipo === 'cambio' && i.num2 && { eq: i.eq, num: i.num2, campo: 'num2' },
+].filter(Boolean);
+
+// Titulares de cada equipo: obj.tit = { local: [números], visit: [números] }. Si no se cargaron, del 1 al 11.
+const TITULARES_BASE = Array.from({ length: 11 }, (_, k) => k + 1);
+const titularesDe = (tit, eq) => (tit && tit[eq] && tit[eq].length ? tit[eq] : TITULARES_BASE);
+const esTitular = (tit, jug) => titularesDe(tit, equipoDe(jug)).includes(Number(jug.num));
+// Nunca pisó la cancha: no es titular ni entró en un cambio
+const enBanco = (lista, jug, tit) => !esTitular(tit, jug) && !entradasDe(lista, jug).length;
+
+// Si en el minuto de esta incidencia el jugador estaba fuera de la cancha: 'sustituido', 'suplente' o ''
+function fueraDeCancha(inc, jug, tit) {
+  if (!jug.num) return '';
+  const s = salidaDe(inc, jug), e = entradaDe(inc, jug);
+  if (s && antesDe(s, jug)) return 'sustituido';
+  return (e ? antesDe(jug, e) : enBanco(inc, jug, tit)) ? 'suplente' : '';
+}
 
 /* Ids de las amarillas que son la segunda de su jugador: se muestran con la roja
    y cuentan como expulsión. Se calculan siempre, así se acomodan solas si se
@@ -517,6 +553,72 @@ function revisarTarjeta(inc, cand) {
   return {};
 }
 
+/* Reglas entre titulares, expulsiones, cambios y goles de un jugador:
+   - entra en un cambio sólo si no es titular, y una sola vez; sale una sola vez;
+   - para salir tiene que haber estado en cancha (titular, o entró antes);
+   - no puede salir reemplazado ni entrar después de ser expulsado (roja o doble amarilla);
+   - convierte sólo si estuvo en cancha: no después de ser expulsado ni de salir, ni antes de entrar;
+   - mientras está fuera (en el banco o ya sustituido), sólo se le pueden sacar tarjetas por motivos de suplente.
+   Revisa cómo quedaría el partido con cand y sólo informa los problemas que trae cand,
+   no los que ya estaban cargados. Devuelve { error, campo } o {}. */
+function revisarJugador(inc, cand, tit) {
+  const con = (inc || []).filter(i => i.id !== cand.id).concat(cand);
+  for (const jug of jugadoresDe(cand)) {
+    const previos = new Set(problemasJugador(inc || [], jug, tit).map(p => p.error));
+    const nuevo = problemasJugador(con, jug, tit).find(p => !previos.has(p.error));
+    if (nuevo) return { error: nuevo.error, campo: nuevo.id === cand.id ? 'motivo' : jug.campo };
+  }
+  return {};
+}
+// Todos los problemas del partido (para revisar un cambio de titulares)
+function problemasPartido(inc, tit) {
+  const vistos = new Set(), problemas = [];
+  (inc || []).forEach(i => jugadoresDe(i).forEach(jug => {
+    const clave = jug.eq + Number(jug.num);
+    if (vistos.has(clave)) return;
+    vistos.add(clave);
+    problemas.push(...problemasJugador(inc, jug, tit));
+  }));
+  return problemas;
+}
+function problemasJugador(lista, jug, tit) {
+  const suyas = lista.filter(i => mismoJugador(i, jug));
+  const quien = `El N° ${Number(jug.num)}`;
+  const enMin = i => (i.min ? ` en el ${textoMinuto(i.min)}` : '');
+  const dobles = segundasAmarillas(lista);
+  const expulsion = porMinuto(suyas.filter(i => i.min && (i.tipo === 'roja' || dobles.has(i.id))))[0];
+  const salidas = salidasDe(suyas, jug), entradas = entradasDe(lista, jug);
+  const salida = salidaDe(suyas, jug), entrada = entradaDe(lista, jug);
+  const titular = esTitular(tit, jug), banco = !titular && !entradas.length;
+  const problemas = [];
+  if (titular && entradas.length) problemas.push({ error: `${quien} es titular: no puede entrar en un cambio (revisá los titulares).` });
+  if (entradas.length > 1) problemas.push({ error: `${quien} ya entró${enMin(entradas[0])}: no puede volver a entrar.` });
+  if (salidas.length > 1) problemas.push({ error: `${quien} ya salió${enMin(salidas[0])}: no puede volver a salir.` });
+  if (banco && salidas.length) problemas.push({ error: `${quien} no es titular ni entró en un cambio: no puede salir (revisá los titulares).` });
+  if (!titular && entrada && salida && antesDe(salida, entrada)) {
+    problemas.push({ error: `${quien} entró en el ${textoMinuto(entrada.min)}: no puede salir antes (cambio en el ${textoMinuto(salida.min)}).` });
+  }
+  if (expulsion && salida && antesDe(expulsion, salida)) {
+    problemas.push({ error: `${quien} fue expulsado en el ${textoMinuto(expulsion.min)}: no puede salir reemplazado después (cambio en el ${textoMinuto(salida.min)}).` });
+  }
+  if (expulsion && entrada && antesDe(expulsion, entrada)) {
+    problemas.push({ error: `${quien} fue expulsado en el ${textoMinuto(expulsion.min)}: no puede entrar después (cambio en el ${textoMinuto(entrada.min)}).` });
+  }
+  suyas.filter(i => i.tipo === 'gol').forEach(g => {
+    if (banco) problemas.push({ error: `${quien} no es titular ni entró en un cambio: no puede convertir (revisá los titulares).` });
+    else if (expulsion && antesDe(expulsion, g)) problemas.push({ error: `${quien} fue expulsado en el ${textoMinuto(expulsion.min)}: no puede convertir después (gol en el ${textoMinuto(g.min)}).` });
+    else if (salida && antesDe(salida, g)) problemas.push({ error: `${quien} salió reemplazado en el ${textoMinuto(salida.min)}: no puede convertir después (gol en el ${textoMinuto(g.min)}).` });
+    else if (entrada && antesDe(g, entrada)) problemas.push({ error: `${quien} entró en el ${textoMinuto(entrada.min)}: no puede convertir antes (gol en el ${textoMinuto(g.min)}).` });
+  });
+  suyas.filter(t => esTarjeta(t) && !motivoDeSuplente(t)).forEach(t => {
+    const fuera = salida && antesDe(salida, t) ? `salió reemplazado en el ${textoMinuto(salida.min)}: después`
+      : entrada && antesDe(t, entrada) ? `entró en el ${textoMinuto(entrada.min)}: antes`
+      : banco ? 'no es titular ni entró en un cambio:' : '';
+    if (fuera) problemas.push({ error: `${quien} ${fuera} sólo se le pueden sacar tarjetas de suplente, no por «${t.motivo}» (${textoMinuto(t.min)}).`, id: t.id });
+  });
+  return problemas;
+}
+
 /* Sección de incidencias dividida en local y visitante.
    obj: el partido (o el formulario) con local, visit, inc, gl y gv.
    alCambiar(): se llama después de cada alta, edición o baja. */
@@ -547,11 +649,16 @@ function seccionIncidencias(obj, alCambiar) {
         b.querySelector('.inc-ico').innerHTML = ICONOS_INC[t];
         botones.append(b);
       });
+      const propios = obj.tit && obj.tit[eq] && obj.tit[eq].length;
       cont.append(el('div', { class: 'inc-equipo' },
         el('div', { class: 'inc-cab' },
           id ? escudo(id) : el('span', { class: 'escudo vacio-esc' }),
           el('div', {}, el('span', { class: 'inc-rol' }, eq === 'local' ? 'Local' : 'Visitante'),
             el('b', {}, id && CLUB[id] ? CLUB[id].nombre : 'Sin elegir'))),
+        el('button', { type: 'button', class: 'inc-tit', onclick: () => editorTitulares(obj, eq, pintarYAvisar) },
+          el('span', { class: 'inc-rol' }, 'Titulares'),
+          el('span', { class: 'inc-tit-nums' + (propios ? '' : ' base') }, propios ? titularesDe(obj.tit, eq).join(', ') : '1 al 11 (sin cargar)'),
+          el('span', { class: 'inc-tit-editar' }, propios ? 'Editar' : 'Cargar')),
         lista.length ? filas : el('p', { class: 'inc-nada' }, 'Sin incidencias'),
         botones));
     });
@@ -607,21 +714,32 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
       seg.querySelectorAll('.chip').forEach(c => c.classList.toggle('sel', c === e.currentTarget));
       const lbl = fila.querySelector('.field-label');
       lbl.textContent = k === 'en-contra' ? 'Jugador N° (rival)' : 'Jugador N°';
+      validar();
     } }, txt)));
     cuerpo.append(el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Tipo de gol'), seg));
   }
 
   // Motivo (sólo tarjetas)
-  let iMotivo;
+  let iMotivo, pintarMotivos;
   if (MOTIVOS[tipo]) {
     iMotivo = el('input', { type: 'text', class: 'campo', placeholder: 'Escribí el motivo o elegí uno', maxlength: 120 });
     iMotivo.value = v.motivo || '';
     const sug = el('div', { class: 'chips chips-motivo' });
+    const lbl = el('span', { class: 'field-label' }, 'Motivo');
     const marcar = () => sug.querySelectorAll('.chip').forEach(c => c.classList.toggle('sel', c.textContent === iMotivo.value));
-    MOTIVOS[tipo].forEach(m => sug.append(el('button', { type: 'button', class: 'chip', onclick: () => { iMotivo.value = iMotivo.value === m ? '' : m; marcar(); } }, m)));
-    iMotivo.addEventListener('input', marcar);
-    marcar();
-    cuerpo.append(el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Motivo'), iMotivo, sug));
+    // Si el jugador ya salió o todavía no entró, sólo los motivos que se le pueden sancionar a un suplente
+    let deSuplente = null;
+    pintarMotivos = fuera => {
+      if (fuera === deSuplente) return;
+      deSuplente = fuera;
+      const suplente = !!fuera;
+      lbl.textContent = { sustituido: 'Motivo · jugador sustituido', suplente: 'Motivo · suplente (todavía no entró)' }[fuera] || 'Motivo';
+      sug.innerHTML = '';
+      (suplente ? MOTIVOS_SUPLENTE : MOTIVOS)[tipo].forEach(m => sug.append(el('button', { type: 'button', class: 'chip', onclick: () => { iMotivo.value = iMotivo.value === m ? '' : m; marcar(); validar(); } }, m)));
+      marcar();
+    };
+    iMotivo.addEventListener('input', () => { marcar(); validar(); });
+    cuerpo.append(el('div', { class: 'field' }, lbl, iMotivo, sug));
   }
 
   // Validación en vivo: marca el campo con error y no deja guardar
@@ -629,21 +747,33 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
   const aviso = el('p', { class: 'inc-aviso' });
   cuerpo.append(error, aviso);
   let btnGuardar;
-  const candidata = () => ({ id: existente ? existente.id : '(nueva)', tipo, eq, num: iNum.value.trim(), min: iMin.value.trim().replace(/\+$/, '') });
+  const candidata = () => ({
+    id: existente ? existente.id : '(nueva)', tipo, eq, num: iNum.value.trim(), min: iMin.value.trim().replace(/\+$/, ''),
+    num2: iNum2 ? iNum2.value.trim() : '', motivo: iMotivo ? iMotivo.value.trim() : '', sub: tipo === 'gol' ? sub : '',
+  });
   function validar() {
     const problemas = [];
     const marcar = (input, msg) => { input.classList.toggle('campo-error', !!msg); if (msg) problemas.push(msg); };
+    if (pintarMotivos) {
+      pintarMotivos(fueraDeCancha(obj.inc, candidata(), obj.tit));
+      marcar(iMotivo, '');
+    }
     marcar(iNum, errorNumero(iNum.value));
     if (iNum2) {
       const mismo = iNum.value && iNum2.value && Number(iNum.value) === Number(iNum2.value);
       marcar(iNum2, errorNumero(iNum2.value) || (mismo ? 'El jugador que entra no puede ser el mismo que sale.' : ''));
     }
     marcar(iMin, errorMinuto(iMin.value));
-    // Reglas de tarjetas (doble amarilla, expulsados) con las otras tarjetas del jugador
+    // Reglas de tarjetas (doble amarilla, expulsados) y de expulsiones, cambios y goles del jugador
     let r = {};
     if (!problemas.length) {
-      r = revisarTarjeta(obj.inc, candidata());
-      if (r.error) marcar(iNum, r.error);
+      const c = candidata();
+      r = revisarTarjeta(obj.inc, c);
+      if (!r.error) {
+        const rj = revisarJugador(obj.inc, c, obj.tit);
+        if (rj.error) r = rj;
+      }
+      if (r.error) marcar({ motivo: iMotivo, num2: iNum2 }[r.campo] || iNum, r.error);
     }
     error.textContent = problemas[0] || '';
     aviso.textContent = problemas.length ? '' : (r.aviso || '');
@@ -686,6 +816,84 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
   if (!existente) setTimeout(() => iNum.focus(), 380);
 }
 
+/* Hoja para elegir los titulares de un equipo (opcional: sin cargar son del 1 al 11).
+   No deja guardar si con los titulares nuevos alguna incidencia ya cargada deja de cerrar. */
+const TITULARES_MAX = 11;
+function editorTitulares(obj, eq, alGuardar) {
+  const propios = obj.tit && obj.tit[eq] && obj.tit[eq].length;
+  const elegidos = new Set(titularesDe(obj.tit, eq));
+  $('#inc-titulo').textContent = 'Titulares';
+  $('#inc-equipo').textContent = `${eq === 'local' ? 'Local' : 'Visitante'} · ${obj[eq] && CLUB[obj[eq]] ? CLUB[obj[eq]].nombre : 'equipo sin elegir'}`;
+  const cuerpo = $('#inc-cuerpo'); cuerpo.innerHTML = '';
+
+  const cuenta = el('span', { class: 'tit-cuenta' });
+  const grilla = el('div', { class: 'tit-grilla' });
+  // Del 1 al 30 siempre; los números más altos aparecen cuando se agregan
+  const pintarGrilla = () => {
+    grilla.innerHTML = '';
+    const nums = [...new Set([...Array.from({ length: 30 }, (_, k) => k + 1), ...elegidos])].sort((a, b) => a - b);
+    nums.forEach(n => grilla.append(el('button', { type: 'button', class: 'chip tit-num' + (elegidos.has(n) ? ' sel' : ''), onclick: e => {
+      elegidos.has(n) ? elegidos.delete(n) : elegidos.add(n);
+      e.currentTarget.classList.toggle('sel', elegidos.has(n));
+      validar();
+    } }, String(n))));
+  };
+  const iOtro = el('input', { type: 'text', inputmode: 'numeric', maxlength: 2, class: 'campo campo-num', placeholder: 'Ej: 33' });
+  const agregar = () => {
+    const n = Number(iOtro.value);
+    if (errorNumero(iOtro.value) || !n) { iOtro.classList.add('campo-error'); return; }
+    elegidos.add(n); iOtro.value = ''; iOtro.classList.remove('campo-error');
+    pintarGrilla(); validar();
+  };
+  iOtro.addEventListener('input', () => { iOtro.value = iOtro.value.replace(/\D/g, '').slice(0, 2); iOtro.classList.remove('campo-error'); });
+  iOtro.addEventListener('keydown', e => { if (e.key === 'Enter') agregar(); });
+  cuerpo.append(
+    el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Números de los titulares ', cuenta), grilla),
+    el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Otro número'),
+      el('div', { class: 'tit-otro' }, iOtro, el('button', { type: 'button', class: 'btn btn-ghost', onclick: agregar }, 'Agregar'))));
+
+  const error = el('p', { class: 'inc-error', role: 'alert' });
+  const aviso = el('p', { class: 'inc-aviso' });
+  cuerpo.append(error, aviso);
+  let btnGuardar;
+  // Si quedan del 1 al 11 no se guarda lista propia
+  const nuevosTit = () => {
+    const tit = Object.assign({}, obj.tit, { [eq]: [...elegidos].sort((a, b) => a - b) });
+    if (tit[eq].join() === TITULARES_BASE.join()) delete tit[eq];
+    return tit;
+  };
+  function validar() {
+    const n = elegidos.size;
+    cuenta.textContent = `· ${n} de ${TITULARES_MAX}`;
+    let msg = !n ? 'Elegí al menos un titular.' : (n > TITULARES_MAX ? `Pueden ser ${TITULARES_MAX} como máximo: sacá ${n - TITULARES_MAX}.` : '');
+    if (!msg) {
+      const previos = new Set(problemasPartido(obj.inc, obj.tit).map(p => p.error));
+      const nuevo = problemasPartido(obj.inc, nuevosTit()).find(p => !previos.has(p.error));
+      if (nuevo) msg = nuevo.error;
+    }
+    error.textContent = msg;
+    aviso.textContent = !msg && n < TITULARES_MAX ? `Son ${n}: está bien si el equipo empezó con menos de ${TITULARES_MAX}.` : '';
+    if (btnGuardar) btnGuardar.disabled = !!msg;
+    return !msg;
+  }
+  const guardar = tit => { obj.tit = tit; cerrarCapa(); alGuardar(); toast('Titulares guardados'); };
+
+  const acciones = el('div', { class: 'inc-acciones' });
+  if (propios) {
+    // Volver al 1 al 11 (si las incidencias lo permiten)
+    acciones.append(el('button', { type: 'button', class: 'btn btn-ghost', onclick: () => {
+      elegidos.clear(); TITULARES_BASE.forEach(n => elegidos.add(n)); pintarGrilla();
+      if (validar()) guardar(nuevosTit());
+    } }, '1 al 11'));
+  }
+  btnGuardar = el('button', { type: 'button', class: 'btn btn-primary', onclick: () => { if (validar()) guardar(nuevosTit()); } }, 'Guardar');
+  acciones.append(btnGuardar);
+  cuerpo.append(acciones);
+  pintarGrilla();
+  validar();
+  abrirCapa('#h-inc');
+}
+
 // Minuto: de 1 a 90, con adición opcional de 1 a 20 (ej: 45+2, 90+5). Vacío vale (es opcional).
 const MINUTO_MAX = 90, ADICION_MAX = 20;
 function errorMinuto(texto) {
@@ -725,13 +933,13 @@ function sincronizarResultado(obj, antes) {
 }
 
 // ---------------- CARGAR ----------------
-const form = { liga: null, cat: null, sub: null, local: null, visit: null, fecha: hoyISO(), fotos: [], notas: '', gl: null, gv: null, inc: [] };
+const form = { liga: null, cat: null, sub: null, local: null, visit: null, fecha: hoyISO(), fotos: [], notas: '', gl: null, gv: null, inc: [], tit: {} };
 
 function renderCargar() {
   opciones($('#c-ligas'), 'ligas', LIGAS, l => el('button', {
     type: 'button', class: 'liga-card',
     onclick: () => {
-      if (form.liga !== l.id) { form.liga = l.id; form.cat = null; form.sub = null; form.local = null; form.visit = null; form.inc = []; }
+      if (form.liga !== l.id) { form.liga = l.id; form.cat = null; form.sub = null; form.local = null; form.visit = null; form.inc = []; form.tit = {}; }
       renderCargar();
       setTimeout(() => $('#p-cat').scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
     },
@@ -859,7 +1067,7 @@ $('#btn-guardar').addEventListener('click', async () => {
   const btn = $('#btn-guardar'); btn.disabled = true;
   const p = {
     id: uid(), liga: form.liga, cat: form.cat, sub: form.sub || null,
-    local: form.local, visit: form.visit, gl: form.gl, gv: form.gv, inc: form.inc, fecha: form.fecha || hoyISO(), notas: form.notas.trim(), creado: Date.now(),
+    local: form.local, visit: form.visit, gl: form.gl, gv: form.gv, inc: form.inc, tit: form.tit, fecha: form.fecha || hoyISO(), notas: form.notas.trim(), creado: Date.now(),
   };
   const fotos = form.fotos.map((f, i) => ({ id: uid() + i, partido: p.id, blob: f.blob, orden: i }));
   try {
@@ -869,7 +1077,7 @@ $('#btn-guardar').addEventListener('click', async () => {
   }
   form.fotos.forEach(f => URL.revokeObjectURL(f.url));
   // Se mantienen liga, categoría y fecha para cargar el siguiente más rápido.
-  form.local = null; form.visit = null; form.gl = null; form.gv = null; form.inc = []; form.fotos = []; form.notas = '';
+  form.local = null; form.visit = null; form.gl = null; form.gv = null; form.inc = []; form.tit = {}; form.fotos = []; form.notas = '';
   ver.liga = p.liga; ver.cat = p.cat; ver.sub = null;
   toast('Partido guardado ✓');
   renderCargar();
