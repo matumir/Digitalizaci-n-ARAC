@@ -64,12 +64,13 @@ const Sync = (() => {
     for (const b of borrados) await DB.marcarSubido('borrado', b.clave, b.mod);
   }
 
-  // Trae las filas cambiadas después de 'desde', de a lotes
+  // Trae las filas propias cambiadas después de 'desde', de a lotes
+  // (el filtro por cuenta hace falta: el administrador puede leer las de todos)
   async function cambiosDe(tabla, columnas, desde) {
     const filas = [];
     let cursor = desde;
     for (;;) {
-      const { data, error } = await sb.from(tabla).select(columnas).gt('actualizado', cursor).order('actualizado').limit(LOTE);
+      const { data, error } = await sb.from(tabla).select(columnas).eq('user_id', uid).gt('actualizado', cursor).order('actualizado').limit(LOTE);
       if (error) throw error;
       filas.push(...data);
       if (data.length < LOTE) return filas;

@@ -354,21 +354,21 @@ window.addEventListener('popstate', () => {
 });
 document.addEventListener('click', e => { if (e.target.closest('[data-cerrar]')) cerrarCapa(); });
 
-const TITULOS = { partidos: 'Partidos', cargar: 'Cargar partido' };
+const TITULOS = { partidos: 'Partidos', cargar: 'Cargar partido', admin: 'Árbitros' };
 let vistaActual = 'partidos';
 document.querySelectorAll('.bottomnav .nav-btn').forEach(b => b.addEventListener('click', () => mostrarVista(b.dataset.vista)));
 function mostrarVista(v) {
   const cambia = v !== vistaActual;
   vistaActual = v;
   document.querySelectorAll('.bottomnav .nav-btn').forEach(b => b.classList.toggle('activa', b.dataset.vista === v));
-  $('#v-partidos').hidden = v !== 'partidos';
-  $('#v-cargar').hidden = v !== 'cargar';
+  document.querySelectorAll('main > .vista').forEach(s => { s.hidden = s.id !== 'v-' + v; });
   const tit = $('#titulo-vista');
   tit.textContent = TITULOS[v];
   if (cambia) { animar(tit, 'cambia'); animar($('#v-' + v), 'entra'); }
   window.scrollTo(0, 0);
   if (v === 'partidos') renderPartidos(true);
   if (v === 'cargar') renderCargar();
+  if (v === 'admin') renderAdmin();   // admin.js
 }
 
 // ---------------- Tema ----------------
@@ -621,8 +621,13 @@ function problemasJugador(lista, jug, tit) {
 
 /* Sección de incidencias dividida en local y visitante.
    obj: el partido (o el formulario) con local, visit, inc, gl y gv.
-   alCambiar(): se llama después de cada alta, edición o baja. */
-function seccionIncidencias(obj, alCambiar) {
+   alCambiar(): se llama después de cada alta, edición o baja.
+   soloLectura: sin botones para cargar ni editar (panel de administrador). */
+function seccionIncidencias(obj, alCambiar, soloLectura = false) {
+  // En sólo lectura las filas son div (no se tocan); si no, botones que abren su editor
+  const tocable = (clase, accion, ...hijos) => (soloLectura
+    ? el('div', { class: clase }, ...hijos)
+    : el('button', { type: 'button', class: clase, onclick: accion }, ...hijos));
   const cont = el('div', { class: 'inc-equipos' });
   const pintar = (resaltar) => {
     cont.innerHTML = '';
@@ -634,7 +639,7 @@ function seccionIncidencias(obj, alCambiar) {
       lista.forEach(i => {
         const doble = dobles.has(i.id);
         const detalle = [doble ? 'Roja por doble amarilla' : '', i.motivo].filter(Boolean).join(' · ');
-        const fila = el('button', { type: 'button', class: 'inc-fila' + (doble ? ' doble' : '') + (i.id === resaltar ? ' entra' : ''), onclick: () => editorInc(obj, eq, i.tipo, i, pintarYAvisar) },
+        const fila = tocable('inc-fila' + (doble ? ' doble' : '') + (i.id === resaltar ? ' entra' : ''), () => editorInc(obj, eq, i.tipo, i, pintarYAvisar),
           el('span', { class: 'inc-ico' }), el('span', { class: 'inc-txt' },
             el('b', {}, textoInc(i)),
             detalle ? el('span', {}, detalle) : null),
@@ -655,12 +660,12 @@ function seccionIncidencias(obj, alCambiar) {
           id ? escudo(id) : el('span', { class: 'escudo vacio-esc' }),
           el('div', {}, el('span', { class: 'inc-rol' }, eq === 'local' ? 'Local' : 'Visitante'),
             el('b', {}, id && CLUB[id] ? CLUB[id].nombre : 'Sin elegir'))),
-        el('button', { type: 'button', class: 'inc-tit', onclick: () => editorTitulares(obj, eq, pintarYAvisar) },
+        tocable('inc-tit', () => editorTitulares(obj, eq, pintarYAvisar),
           el('span', { class: 'inc-rol' }, 'Titulares'),
           el('span', { class: 'inc-tit-nums' + (propios ? '' : ' base') }, propios ? titularesDe(obj.tit, eq).join(', ') : '1 al 11 (sin cargar)'),
-          el('span', { class: 'inc-tit-editar' }, propios ? 'Editar' : 'Cargar')),
+          soloLectura ? null : el('span', { class: 'inc-tit-editar' }, propios ? 'Editar' : 'Cargar')),
         lista.length ? filas : el('p', { class: 'inc-nada' }, 'Sin incidencias'),
-        botones));
+        soloLectura ? null : botones));
     });
   };
   const pintarYAvisar = (idCambiado) => { pintar(idCambiado); alCambiar(); };
@@ -1157,6 +1162,7 @@ async function renderPartidos(animarLista = false) {
 
 // ---------------- Detalle ----------------
 let fotosVisor = [], idxVisor = 0;
+let visorSoloVer = false;        // fotos de otro árbitro (panel de administrador): no se borran
 const fotosNuevas = new Set();   // recién agregadas: entran con animación
 const ICO_CAMARA = '<svg class="ico" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 const ICO_DESCARGAR = '<svg class="ico" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></svg>';
@@ -1168,6 +1174,7 @@ async function abrirDetalle(p) {
   $('#h-detalle').scrollTop = 0;
 }
 async function pintarDetalle(p) {
+  visorSoloVer = false;
   fotosVisor.forEach(f => URL.revokeObjectURL(f.url));
   const fotos = (await DB.fotosDe(p.id)).sort((a, b) => (a.orden || 0) - (b.orden || 0));
   const faltantes = await DB.fotosFaltantes(p.id);
@@ -1382,6 +1389,7 @@ function pintarVisor() {
   $('#visor-num').textContent = `${idxVisor + 1} / ${n}`;
   $('#visor-ant').hidden = n < 2; $('#visor-sig').hidden = n < 2;
   const b = $('#visor-borrar'); if (b._reset) b._reset();
+  b.hidden = visorSoloVer;
 }
 $('#visor-ant').addEventListener('click', () => { idxVisor = (idxVisor - 1 + fotosVisor.length) % fotosVisor.length; pintarVisor(); });
 $('#visor-sig').addEventListener('click', () => { idxVisor = (idxVisor + 1) % fotosVisor.length; pintarVisor(); });
@@ -1429,7 +1437,7 @@ window.addEventListener('arac:fin-sesion', () => {
   pila.length = 0;
   document.querySelectorAll('.hoja, .sheet-wrap, .visor').forEach(n => { n.hidden = true; n.classList.remove('se-va'); });
   form.fotos.forEach(f => URL.revokeObjectURL(f.url));
-  Object.assign(form, { liga: null, cat: null, sub: null, local: null, visit: null, gl: null, gv: null, inc: [], fotos: [], notas: '' });
+  Object.assign(form, { liga: null, cat: null, sub: null, local: null, visit: null, gl: null, gv: null, inc: [], tit: {}, fotos: [], notas: '' });
   $('#lista').innerHTML = '';
   syncEstado = null; pintarSync();
 });
