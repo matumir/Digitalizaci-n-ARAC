@@ -47,6 +47,7 @@ También sirve en Android (Chrome → Instalar) y en la computadora.
 - `www/vendor/` — Capacitor, sus plugins y supabase-js (copiados de `node_modules`, la app no usa bundler).
 - `www/sync.js` — sincronización de partidos y fotos con Supabase.
 - `supabase/setup.sql` — whitelist de cuentas. `supabase/sync.sql` — tablas, archivos y borrado de fotos a los 15 días.
+- `www/admin.js` y `supabase/admin.sql` — panel de administrador (ver todos los árbitros y sus partidos).
 - `www/manifest.webmanifest`, `www/sw.js`, `www/pwa.js`, `www/icons/` — versión web instalable (PWA).
 - `scripts/preparar-web.mjs` — arma la versión web en `dist/` (lista de archivos para usar sin internet).
 - `android/` — proyecto Android (Capacitor 7).
@@ -65,8 +66,11 @@ Sólo pueden entrar las cuentas que estén en la whitelist. Se configura una vez
    Copiá el **ID de cliente** y el **secreto**.
 3. **Supabase → Authentication → Sign In / Providers → Google**: activalo y pegá el ID y el secreto.
    En el mismo menú conviene **desactivar Email** (no se usa).
-4. **Supabase → Authentication → URL Configuration → Redirect URLs**: agregá `com.arac.partidos://login`
-   (APK) y `https://matumir.github.io/Digitalizaci-n-ARAC/app/**` (versión web).
+4. **Supabase → Authentication → URL Configuration**:
+   - **Site URL**: `https://matumir.github.io/Digitalizaci-n-ARAC/app/` (si queda el `http://localhost:3000`
+     que trae por defecto, en iPhone Safari dice *no pudo conectarse al servidor* después de elegir la cuenta).
+   - **Redirect URLs**: agregá `com.arac.partidos://login` (APK) y
+     `https://matumir.github.io/Digitalizaci-n-ARAC/app/**` (versión web). Tocá *Save* en cada una.
 5. **Supabase → SQL Editor**: pegá `supabase/setup.sql`, cambiá `tu-mail@gmail.com` por los mails reales y tocá *Run*.
 
 Para autorizar a alguien más: *SQL Editor* →
@@ -91,6 +95,22 @@ Cómo funciona:
   teléfonos. En los teléfonos que ya las tienen quedan siempre. Un teléfono nuevo recibe todos los partidos, pero sólo las
   fotos de los últimos 15 días.
 - En un mismo teléfono, cada cuenta tiene sus partidos por separado.
+
+## Panel de administrador
+
+Las cuentas marcadas como administrador ven una pestaña más, **Árbitros**: la lista de todos los árbitros
+(con cuántos partidos cargó cada uno y cuándo fue su último cambio), los partidos de cada uno y el detalle
+completo de cada partido (resultado, fotos, incidencias, titulares y notas). Es sólo para ver: no se puede
+cambiar ni borrar nada de otro árbitro. Necesita internet, porque lee directo de la nube.
+
+Se configura una vez, después de la sincronización:
+1. Primero actualizá la app en el teléfono del administrador (la versión nueva baja sólo tus propios partidos;
+   una versión vieja, con el permiso de administrador, bajaría al teléfono los de todos).
+2. **SQL Editor**: pegá `supabase/admin.sql` y tocá *Run*. Deja como administrador a `mateojmiranda04@gmail.com`.
+
+Para sumar otro administrador (tiene que estar en la whitelist):
+`update public.whitelist set admin = true where email = 'mail@gmail.com';`
+Para quitarlo: `update public.whitelist set admin = false where email = 'mail@gmail.com';`
 
 ## Importante
 Los datos de los partidos quedan en la cuenta: si se pierde el teléfono, se recuperan iniciando sesión en otro.
