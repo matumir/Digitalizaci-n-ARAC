@@ -50,4 +50,8 @@
     <!-- Sólo Android 10 o anterior: guardar las fotos descargadas en la galería -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Recordatorio de los sábados y domingos a las 22:00 a la hora justa (sin esto Android lo puede atrasar).
+         USE_EXACT_ALARM se concede solo desde Android 13; SCHEDULE_EXACT_ALARM cubre Android 12. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 </manifest>

@@ -93,10 +93,21 @@ function pintarArbitros() {
   const iBuscar = el('input', { type: 'search', class: 'buscar', placeholder: 'Buscar por nombre o mail' });
   iBuscar.value = ADM.buscar;
   iBuscar.addEventListener('input', () => { ADM.buscar = iBuscar.value; pintarFilas(); });
+  // Probar el recordatorio de los fines de semana en este teléfono
+  const estadoPrueba = el('span', {}, 'Manda ahora el recordatorio a este teléfono.');
+  const btnPrueba = el('button', { type: 'button', class: 'btn btn-ghost', onclick: async () => {
+    btnPrueba.disabled = true; estadoPrueba.textContent = 'Enviando…';
+    try { estadoPrueba.textContent = await window.Recordatorio.probar(); }
+    catch (e) { estadoPrueba.textContent = navigator.onLine === false ? 'Sin conexión.' : `No se pudo enviar. ${(e && e.message) || ''}`.trim(); }
+    btnPrueba.disabled = false;
+  } }, 'Probar');
   resumen.append(
     el('div', { class: 'adm-resumen' },
       el('div', {}, el('b', {}, plural(todos.length, 'árbitro', 'árbitros')), el('span', {}, plural(total, 'partido cargado', 'partidos cargados'))),
       el('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { ADM.arbitros = null; renderAdmin(); } }, 'Actualizar')),
+    el('div', { class: 'adm-resumen adm-prueba' },
+      el('div', {}, el('b', {}, 'Notificaciones'), estadoPrueba),
+      btnPrueba),
     el('div', { class: 'adm-buscar' }, icono('<svg class="buscar-ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>'), iBuscar));
   pintarFilas();
 }

@@ -17,6 +17,29 @@ self.addEventListener('activate', e => {
   })());
 });
 
+// Recordatorio de los fines de semana (lo manda el servidor: supabase/functions/recordatorio)
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { /* sin datos: va el texto de siempre */ }
+  e.waitUntil(self.registration.showNotification(d.title || 'ARAC Partidos', {
+    body: d.body || 'No te olvides de cargar los partidos de la jornada.',
+    icon: 'icons/icon-192.png',
+    tag: 'arac-recordatorio',
+    data: { url: './#cargar' },
+  }));
+});
+// Al tocarlo: abre la app (o la trae al frente) en Cargar partido
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const url = new URL(e.notification.data && e.notification.data.url || './', self.registration.scope).href;
+    for (const c of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) {
+      if (c.url.startsWith(self.registration.scope)) { c.postMessage('abrir-cargar'); return c.focus(); }
+    }
+    return self.clients.openWindow(url);
+  })());
+});
+
 // La app pide pasar a la versión nueva cuando la persona toca "Actualizar"
 self.addEventListener('message', e => { if (e.data === 'saltar') self.skipWaiting(); });
 

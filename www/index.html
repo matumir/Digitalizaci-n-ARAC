@@ -61,6 +61,15 @@
 <main>
   <!-- ============ PARTIDOS ============ -->
   <section id="v-partidos" class="vista">
+    <!-- Versión web: invitación a activar el recordatorio (en el APK se activa solo) -->
+    <div class="aviso-rec" id="aviso-recordatorio" hidden>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/></svg>
+      <p><b>¿Te recordamos cargar los partidos?</b>Sábados y domingos a las 22:00.</p>
+      <div class="aviso-rec-botones">
+        <button type="button" class="btn btn-ghost" id="aviso-rec-no">Ahora no</button>
+        <button type="button" class="btn btn-primary" id="aviso-rec-si">Activar</button>
+      </div>
+    </div>
     <div class="ligas-tabs" id="ver-ligas"></div>
     <div class="chips" id="ver-cats"></div>
     <div class="chips chips-sub" id="ver-subs" hidden></div>
@@ -212,6 +221,14 @@
         </div>
         <p class="field-help">Tus partidos se guardan en tu cuenta y aparecen en cualquier teléfono donde inicies sesión. Las fotos quedan en la nube 15 días.</p>
       </div>
+      <div class="field" id="aj-recordatorio" hidden>
+        <span class="field-label">Recordatorio</span>
+        <div class="cuenta-fila">
+          <span class="sync-texto"><b id="aj-rec-estado">Desactivado</b></span>
+          <button type="button" class="btn btn-ghost" id="btn-recordatorio">Activar</button>
+        </div>
+        <p class="field-help" id="aj-rec-ayuda">Los sábados y domingos a las 22:00 te avisa para que cargues los partidos de la jornada.</p>
+      </div>
       <div class="field" id="aj-cuenta" hidden>
         <span class="field-label">Cuenta</span>
         <div class="cuenta-fila">
@@ -262,12 +279,14 @@
 <script src="vendor/cap-browser.js"></script>
 <script src="vendor/cap-filesystem.js"></script>
 <script src="vendor/cap-share.js"></script>
+<script src="vendor/cap-local-notifications.js"></script>
 <script src="vendor/supabase.js"></script>
 <script src="config.js"></script>
 <script src="datos-clubes.js"></script>
 <script src="app.js"></script>
 <script src="sync.js"></script>
 <script src="admin.js"></script>
+<script src="recordatorio.js"></script>
 <script src="auth.js"></script>
 <script src="pwa.js"></script>
 </body>

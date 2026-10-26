@@ -48,6 +48,7 @@ También sirve en Android (Chrome → Instalar) y en la computadora.
 - `www/sync.js` — sincronización de partidos y fotos con Supabase.
 - `supabase/setup.sql` — whitelist de cuentas. `supabase/sync.sql` — tablas, archivos y borrado de fotos a los 15 días.
 - `www/admin.js` y `supabase/admin.sql` — panel de administrador (ver todos los árbitros y sus partidos).
+- `www/recordatorio.js`, `supabase/recordatorio.sql` y `supabase/functions/recordatorio/` — aviso de los fines de semana.
 - `www/manifest.webmanifest`, `www/sw.js`, `www/pwa.js`, `www/icons/` — versión web instalable (PWA).
 - `scripts/preparar-web.mjs` — arma la versión web en `dist/` (lista de archivos para usar sin internet).
 - `android/` — proyecto Android (Capacitor 7).
@@ -111,6 +112,33 @@ Se configura una vez, después de la sincronización:
 Para sumar otro administrador (tiene que estar en la whitelist):
 `update public.whitelist set admin = true where email = 'mail@gmail.com';`
 Para quitarlo: `update public.whitelist set admin = false where email = 'mail@gmail.com';`
+
+## Recordatorio de los fines de semana
+
+Los sábados y domingos a las 22:00 la app avisa: *¿Dirigiste hoy? No te olvides de cargar los partidos de la jornada.*
+Al tocar el aviso se abre *Cargar partido*. Cada árbitro lo puede apagar o prender en **Ajustes → Recordatorio**.
+
+- **APK**: lo programa el propio teléfono, a la hora del teléfono y sin internet. Se activa solo la primera vez
+  que se entra (Android pide permiso para mostrar notificaciones). No necesita configurar nada.
+- **Versión web (iPhone)**: un navegador no puede programar avisos, así que los manda el servidor (Web Push).
+  El árbitro lo activa con un toque (aparece una invitación en la lista y en Ajustes). En iPhone sólo funciona
+  con la app instalada en la pantalla de inicio (iOS 16.4 o más nuevo).
+
+La parte del servidor se configura una vez. Las claves (`VAPID_PUBLICA`, `VAPID_PRIVADA` y `ARAC_CLAVE_PUSH`) se
+generan una sola vez y no van en este repositorio; la pública también está en `www/config.js` (`vapidPublicKey`)
+y tiene que ser la misma.
+1. **SQL Editor**: pegá `supabase/recordatorio.sql` y tocá *Run* (crea la tabla de suscripciones y la tarea
+   programada: domingos y lunes a la 1:00 UTC, que son sábados y domingos a las 22:00 de Argentina).
+2. **Edge Functions → Deploy a new function → Via Editor**: nombrala `recordatorio`, pegá
+   `supabase/functions/recordatorio/index.ts` y desplegala. En los ajustes de la función desactivá
+   **Verify JWT / Enforce JWT verification** (la protege la clave `ARAC_CLAVE_PUSH`).
+   Con la CLI: `npx supabase functions deploy recordatorio --no-verify-jwt`.
+3. **Edge Functions → Secrets**: cargá `VAPID_PUBLICA`, `VAPID_PRIVADA` y `ARAC_CLAVE_PUSH`.
+4. **SQL Editor**, en una consulta aparte: `select vault.create_secret('<ARAC_CLAVE_PUSH>', 'arac_clave_push');`
+   (la misma clave del paso 3).
+5. Para probarlo sin esperar al fin de semana: en el **panel de administrador → Notificaciones → Probar** se manda
+   el aviso al teléfono del administrador (en la versión web, primero hay que activar el recordatorio en ese teléfono).
+   Para mandárselo a todos, corré en el SQL Editor el `select net.http_post(…)` que está en `supabase/recordatorio.sql`.
 
 ## Importante
 Los datos de los partidos quedan en la cuenta: si se pierde el teléfono, se recuperan iniciando sesión en otro.
