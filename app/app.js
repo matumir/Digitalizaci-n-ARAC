@@ -434,6 +434,18 @@ const MOTIVOS_SUPLENTE = {
   roja: ['Conducta violenta', 'Escupir', 'Lenguaje ofensivo o insultos'],
 };
 const motivoDeSuplente = t => !MOTIVOS[t.tipo].includes(t.motivo) || MOTIVOS_SUPLENTE[t.tipo].includes(t.motivo);
+/* Tarjetas al cuerpo técnico: en vez de número llevan rol (y, si se quiere, el nombre).
+   También para ellos dos amarillas son expulsión. */
+const ROLES_CT = [
+  ['dt', 'Director Técnico'], ['ayudante', 'Ayudante de Campo'], ['pf', 'Preparador Físico'],
+  ['arqueros', 'Entrenador de Arqueros'], ['medico', 'Médico'], ['kinesiologo', 'Kinesiólogo / Masajista'],
+  ['utilero', 'Utilero'], ['delegado', 'Delegado'], ['auxiliar', 'Personal Auxiliar'],
+];
+const nombreRol = id => (ROLES_CT.find(r => r[0] === id) || [id, 'Cuerpo técnico'])[1];
+const MOTIVOS_CT = {
+  amarilla: ['Protestar', 'Conducta antideportiva', 'Salir del área técnica', 'Entrar al campo sin permiso', 'Demorar la reanudación', 'Gestos o actitud provocativa'],
+  roja: ['Conducta violenta', 'Lenguaje ofensivo o insultos', 'Escupir', 'Entrar al campo a confrontar', 'Arrojar objetos'],
+};
 const SUB_GOL = [['normal', 'Jugada'], ['penal', 'De penal'], ['en-contra', 'En contra']];
 
 const ICONOS_INC = {
@@ -445,11 +457,16 @@ const ICONOS_INC = {
   cambio: '<svg viewBox="0 0 24 24" class="ico-inc"><path d="M7 4v13M3.5 13.5 7 17l3.5-3.5M17 20V7M13.5 10.5 17 7l3.5 3.5"/></svg>',
 };
 
+/* Cambio en el entretiempo: se guarda con min = 'ET' y cuenta como después de toda la
+   adición del primer tiempo (45+20 vale 45.20) y antes del 46. */
+const MIN_ET = 'ET';
 function valorMinuto(m) {
+  if (m === MIN_ET) return 45.9;
   const t = String(m || '').match(/^(\d+)(?:\s*\+\s*(\d+))?/);
   return t ? Number(t[1]) + (t[2] ? Number(t[2]) / 100 : 0) : 999;
 }
-const textoMinuto = m => (m ? `${String(m).replace(/\s+/g, '')}'` : '');
+// Para los mensajes ("en el 35'", "en el entretiempo"); en la lista el entretiempo se abrevia ET
+const textoMinuto = m => (m === MIN_ET ? 'entretiempo' : m ? `${String(m).replace(/\s+/g, '')}'` : '');
 function golesDe(inc) {
   const g = { local: 0, visit: 0 };
   (inc || []).forEach(i => { if (i.tipo === 'gol') g[i.eq]++; });
@@ -457,6 +474,7 @@ function golesDe(inc) {
 }
 function textoInc(i) {
   if (i.tipo === 'cambio') return [i.num ? `Sale ${i.num}` : '', i.num2 ? `entra ${i.num2}` : ''].filter(Boolean).join(', ') || 'Cambio';
+  if (i.rol) return nombreRol(i.rol) + (i.nombre ? ` · ${i.nombre}` : '');
   const quien = i.num ? `N° ${i.num}` : (i.tipo === 'gol' ? 'Gol' : TIPOS_INC[i.tipo].titulo);
   if (i.tipo === 'gol' && i.sub === 'penal') return quien + ' (penal)';
   if (i.tipo === 'gol' && i.sub === 'en-contra') return quien + ' (en contra)';
@@ -476,7 +494,13 @@ function resumenInc(inc) {
 const rival = eq => (eq === 'local' ? 'visit' : 'local');
 // En un gol en contra el número es de un jugador del rival
 const equipoDe = i => (i.tipo === 'gol' && i.sub === 'en-contra' ? rival(i.eq) : i.eq);
-const mismoJugador = (a, b) => equipoDe(a) === equipoDe(b) && a.num && b.num && Number(a.num) === Number(b.num);
+// Cuerpo técnico: misma persona = mismo rol y mismo nombre (sin nombre, el rol solo)
+const mismoNombre = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+const mismoJugador = (a, b) => equipoDe(a) === equipoDe(b) && (a.rol || b.rol
+  ? a.rol === b.rol && mismoNombre(a.nombre, b.nombre)
+  : !!(a.num && b.num && Number(a.num) === Number(b.num)));
+// Cómo se nombra en los mensajes: "El N° 9", "El Director Técnico (Juan Pérez)"
+const quienEs = i => (i.rol ? `El ${nombreRol(i.rol)}${i.nombre ? ` (${i.nombre})` : ''}` : `El N° ${Number(i.num)}`);
 const esTarjeta = i => i.tipo === 'amarilla' || i.tipo === 'roja';
 // Ordena por minuto; las que no tienen minuto van al final, en el orden en que se cargaron
 const porMinuto = lista => lista.map((x, k) => [x, k]).sort((a, b) => (valorMinuto(a[0].min) - valorMinuto(b[0].min)) || (a[1] - b[1])).map(x => x[0]);
@@ -513,7 +537,7 @@ function fueraDeCancha(inc, jug, tit) {
    edita el minuto o se borra una amarilla. */
 function segundasAmarillas(inc) {
   const ids = new Set(), vistos = [];
-  porMinuto((inc || []).filter(i => i.tipo === 'amarilla' && i.num)).forEach(a => {
+  porMinuto((inc || []).filter(i => i.tipo === 'amarilla' && (i.num || i.rol))).forEach(a => {
     const previas = vistos.filter(v => mismoJugador(v, a)).length;
     if (previas === 1) ids.add(a.id);
     vistos.push(a);
@@ -527,9 +551,9 @@ function segundasAmarillas(inc) {
    - después del minuto de la expulsión no puede recibir ninguna tarjeta.
    Devuelve { error } o { aviso } (cuando la amarilla nueva es la segunda). */
 function revisarTarjeta(inc, cand) {
-  if (!esTarjeta(cand) || !cand.num) return {};
+  if (!esTarjeta(cand) || !(cand.num || cand.rol)) return {};
   const otras = (inc || []).filter(i => i.id !== cand.id && esTarjeta(i) && mismoJugador(i, cand));
-  const quien = `El N° ${Number(cand.num)}`;
+  const quien = quienEs(cand);
   const amas = porMinuto(otras.filter(i => i.tipo === 'amarilla'));
   const roja = otras.find(i => i.tipo === 'roja');
   const enMin = i => (i.min ? ` en el ${textoMinuto(i.min)}` : '');
@@ -548,7 +572,7 @@ function revisarTarjeta(inc, cand) {
     return {};
   }
   if (amas.length === 1) {
-    return { aviso: `Con esta, el N° ${Number(cand.num)} suma dos amarillas: se registra la roja por doble amarilla.` };
+    return { aviso: `Con esta, ${quien.replace(/^El/, 'el')} suma dos amarillas: se registra la roja por doble amarilla.` };
   }
   return {};
 }
@@ -638,12 +662,12 @@ function seccionIncidencias(obj, alCambiar, soloLectura = false) {
       const filas = el('div', { class: 'inc-lista' });
       lista.forEach(i => {
         const doble = dobles.has(i.id);
-        const detalle = [doble ? 'Roja por doble amarilla' : '', i.motivo].filter(Boolean).join(' · ');
+        const detalle = [doble ? 'Roja por doble amarilla' : '', i.min === MIN_ET ? 'En el entretiempo' : '', i.motivo].filter(Boolean).join(' · ');
         const fila = tocable('inc-fila' + (doble ? ' doble' : '') + (i.id === resaltar ? ' entra' : ''), () => editorInc(obj, eq, i.tipo, i, pintarYAvisar),
           el('span', { class: 'inc-ico' }), el('span', { class: 'inc-txt' },
             el('b', {}, textoInc(i)),
             detalle ? el('span', {}, detalle) : null),
-          el('span', { class: 'inc-min' }, textoMinuto(i.min)));
+          el('span', { class: 'inc-min' }, i.min === MIN_ET ? 'ET' : textoMinuto(i.min)));
         fila.querySelector('.inc-ico').innerHTML = doble ? ICONOS_INC.doble : ICONOS_INC[i.tipo];
         filas.append(fila);
       });
@@ -689,26 +713,69 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
     return [el('label', { class: 'field' }, el('span', { class: 'field-label' }, etiqueta), i), i];
   };
   const fila = el('div', { class: 'inc-campos' });
-  let iNum, iNum2;
+  let iNum, iNum2, campoJugador;
   if (tipo === 'cambio') {
     const [a, x] = campoNum('Sale N°', v.num, 'Ej: 9'); iNum = x;
     const [b, y] = campoNum('Entra N°', v.num2, 'Ej: 18'); iNum2 = y;
     fila.append(a, b);
   } else {
     const [a, x] = campoNum(tipo === 'gol' && v.sub === 'en-contra' ? 'Jugador N° (rival)' : 'Jugador N°', v.num, 'Ej: 10'); iNum = x;
+    campoJugador = a;
     fila.append(a);
+  }
+
+  // Tarjeta: a un jugador o a alguien del cuerpo técnico (cargo y, si se quiere, nombre)
+  let paraCT = !!v.rol, rol = v.rol || 'dt', iNombre = null;
+  const bloqueCT = el('div', { class: 'field' });
+  if (MOTIVOS[tipo]) {
+    const seg = el('div', { class: 'chips' });
+    [[false, 'Jugador'], [true, 'Cuerpo técnico']].forEach(([ct, txt]) => seg.append(el('button', { type: 'button', class: 'chip' + (ct === paraCT ? ' sel' : ''), onclick: e => {
+      paraCT = ct;
+      seg.querySelectorAll('.chip').forEach(c => c.classList.toggle('sel', c === e.currentTarget));
+      campoJugador.hidden = paraCT; bloqueCT.hidden = !paraCT;
+      validar();
+    } }, txt)));
+    cuerpo.append(el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'A quién'), seg));
+    const roles = el('div', { class: 'chips chips-motivo' });
+    ROLES_CT.forEach(([k, txt]) => roles.append(el('button', { type: 'button', class: 'chip' + (k === rol ? ' sel' : ''), onclick: e => {
+      rol = k;
+      roles.querySelectorAll('.chip').forEach(c => c.classList.toggle('sel', c === e.currentTarget));
+      validar();
+    } }, txt)));
+    iNombre = el('input', { type: 'text', class: 'campo', placeholder: 'Nombre (opcional)', maxlength: 60, autocapitalize: 'words' });
+    iNombre.value = v.nombre || '';
+    iNombre.addEventListener('input', validar);
+    bloqueCT.append(el('span', { class: 'field-label' }, 'Cargo'), roles, iNombre);
+    campoJugador.hidden = paraCT; bloqueCT.hidden = !paraCT;
   }
   // Minuto: teclado de teléfono para poder escribir la adición (45+2)
   const iMin = el('input', { type: 'text', inputmode: 'tel', maxlength: 5, class: 'campo campo-num', placeholder: tipo === 'cambio' ? 'Ej: 65' : 'Ej: 35 o 45+2' });
-  iMin.value = v.min || '';
+  iMin.value = v.min === MIN_ET ? '' : (v.min || '');
   iMin.addEventListener('input', () => {
     // Sólo dígitos y un "+": hasta 2 cifras de minuto y 2 de adición
     const [base, ...resto] = iMin.value.replace(/[^\d+]/g, '').split('+');
     iMin.value = base.slice(0, 2) + (resto.length ? '+' + resto.join('').slice(0, 2) : '');
     validar();
   });
-  fila.append(el('label', { class: 'field' }, el('span', { class: 'field-label' }, 'Minuto'), iMin));
+  const campoMin = el('label', { class: 'field' }, el('span', { class: 'field-label' }, 'Minuto'), iMin);
+  fila.append(campoMin);
   cuerpo.append(fila);
+  if (MOTIVOS[tipo]) cuerpo.append(bloqueCT);
+
+  // Cambio: durante el partido (con minuto) o en el entretiempo (sin minuto)
+  let enET = tipo === 'cambio' && v.min === MIN_ET;
+  const minuto = () => (enET ? MIN_ET : iMin.value.trim().replace(/\+$/, ''));
+  if (tipo === 'cambio') {
+    const seg = el('div', { class: 'chips' });
+    [[false, 'Durante el partido'], [true, 'En el entretiempo']].forEach(([et, txt]) => seg.append(el('button', { type: 'button', class: 'chip' + (et === enET ? ' sel' : ''), onclick: e => {
+      enET = et;
+      seg.querySelectorAll('.chip').forEach(c => c.classList.toggle('sel', c === e.currentTarget));
+      campoMin.hidden = enET;
+      validar();
+    } }, txt)));
+    campoMin.hidden = enET;
+    cuerpo.append(el('div', { class: 'field' }, el('span', { class: 'field-label' }, 'Cuándo'), seg));
+  }
 
   // Tipo de gol
   let sub = v.sub || 'normal';
@@ -732,15 +799,15 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
     const sug = el('div', { class: 'chips chips-motivo' });
     const lbl = el('span', { class: 'field-label' }, 'Motivo');
     const marcar = () => sug.querySelectorAll('.chip').forEach(c => c.classList.toggle('sel', c.textContent === iMotivo.value));
-    // Si el jugador ya salió o todavía no entró, sólo los motivos que se le pueden sancionar a un suplente
+    // Motivos según a quién: cuerpo técnico ('ct'), jugador fuera de la cancha ('sustituido' o
+    // 'suplente': sólo los que se le pueden sancionar a un suplente) o jugador en cancha ('')
     let deSuplente = null;
     pintarMotivos = fuera => {
       if (fuera === deSuplente) return;
       deSuplente = fuera;
-      const suplente = !!fuera;
       lbl.textContent = { sustituido: 'Motivo · jugador sustituido', suplente: 'Motivo · suplente (todavía no entró)' }[fuera] || 'Motivo';
       sug.innerHTML = '';
-      (suplente ? MOTIVOS_SUPLENTE : MOTIVOS)[tipo].forEach(m => sug.append(el('button', { type: 'button', class: 'chip', onclick: () => { iMotivo.value = iMotivo.value === m ? '' : m; marcar(); validar(); } }, m)));
+      (fuera === 'ct' ? MOTIVOS_CT : fuera ? MOTIVOS_SUPLENTE : MOTIVOS)[tipo].forEach(m => sug.append(el('button', { type: 'button', class: 'chip', onclick: () => { iMotivo.value = iMotivo.value === m ? '' : m; marcar(); validar(); } }, m)));
       marcar();
     };
     iMotivo.addEventListener('input', () => { marcar(); validar(); });
@@ -753,22 +820,23 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
   cuerpo.append(error, aviso);
   let btnGuardar;
   const candidata = () => ({
-    id: existente ? existente.id : '(nueva)', tipo, eq, num: iNum.value.trim(), min: iMin.value.trim().replace(/\+$/, ''),
+    id: existente ? existente.id : '(nueva)', tipo, eq, num: paraCT ? '' : iNum.value.trim(), min: minuto(),
     num2: iNum2 ? iNum2.value.trim() : '', motivo: iMotivo ? iMotivo.value.trim() : '', sub: tipo === 'gol' ? sub : '',
+    rol: paraCT ? rol : '', nombre: paraCT ? iNombre.value.trim() : '',
   });
   function validar() {
     const problemas = [];
     const marcar = (input, msg) => { input.classList.toggle('campo-error', !!msg); if (msg) problemas.push(msg); };
     if (pintarMotivos) {
-      pintarMotivos(fueraDeCancha(obj.inc, candidata(), obj.tit));
+      pintarMotivos(paraCT ? 'ct' : fueraDeCancha(obj.inc, candidata(), obj.tit));
       marcar(iMotivo, '');
     }
-    marcar(iNum, errorNumero(iNum.value));
+    marcar(iNum, paraCT ? '' : errorNumero(iNum.value));
     if (iNum2) {
       const mismo = iNum.value && iNum2.value && Number(iNum.value) === Number(iNum2.value);
       marcar(iNum2, errorNumero(iNum2.value) || (mismo ? 'El jugador que entra no puede ser el mismo que sale.' : ''));
     }
-    marcar(iMin, errorMinuto(iMin.value));
+    marcar(iMin, enET ? '' : errorMinuto(iMin.value));
     // Reglas de tarjetas (doble amarilla, expulsados) y de expulsiones, cambios y goles del jugador
     let r = {};
     if (!problemas.length) {
@@ -778,7 +846,7 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
         const rj = revisarJugador(obj.inc, c, obj.tit);
         if (rj.error) r = rj;
       }
-      if (r.error) marcar({ motivo: iMotivo, num2: iNum2 }[r.campo] || iNum, r.error);
+      if (r.error) marcar({ motivo: iMotivo, num2: iNum2 }[r.campo] || (paraCT ? iNombre : iNum), r.error);
     }
     error.textContent = problemas[0] || '';
     aviso.textContent = problemas.length ? '' : (r.aviso || '');
@@ -790,17 +858,18 @@ function editorInc(obj, eq, tipo, existente, alGuardar) {
     if (!validar()) return;
     const nuevo = {
       id: existente ? existente.id : uid(), tipo, eq,
-      num: iNum.value.trim(), num2: iNum2 ? iNum2.value.trim() : '',
-      min: iMin.value.trim().replace(/\+$/, ''), motivo: iMotivo ? iMotivo.value.trim() : '',
+      num: paraCT ? '' : iNum.value.trim(), num2: iNum2 ? iNum2.value.trim() : '',
+      min: minuto(), motivo: iMotivo ? iMotivo.value.trim() : '',
       sub: tipo === 'gol' ? sub : '',
     };
+    if (paraCT) Object.assign(nuevo, { rol, nombre: iNombre.value.trim() });
     const antes = golesDe(obj.inc);
     obj.inc = (obj.inc || []).filter(i => i.id !== nuevo.id).concat(nuevo);
     sincronizarResultado(obj, antes);
     cerrarCapa();
     alGuardar(nuevo.id);
     const doble = tipo === 'amarilla' && segundasAmarillas(obj.inc).has(nuevo.id);
-    toast(doble ? `Doble amarilla: roja para el N° ${Number(nuevo.num)}` : (existente ? 'Incidencia actualizada' : T.cargada));
+    toast(doble ? `Doble amarilla: roja para ${quienEs(nuevo).replace(/^El /, 'el ')}` : (existente ? 'Incidencia actualizada' : T.cargada));
   };
   const acciones = el('div', { class: 'inc-acciones' });
   if (existente) {
@@ -1426,7 +1495,10 @@ window.addEventListener('arac:sesion', async e => {
     const n = await DB.migrarLegado();
     if (n) toast(n === 1 ? '1 partido pasó a tu cuenta' : `${n} partidos pasaron a tu cuenta`);
   } catch (err) { /* si falla, los partidos viejos quedan donde estaban */ }
-  mostrarVista('partidos');
+  // Si se abrió tocando el recordatorio (recordatorio.js), va directo a Cargar partido
+  const desdeAviso = location.hash === '#cargar';
+  if (desdeAviso) history.replaceState(history.state, '', location.pathname + location.search);
+  mostrarVista(desdeAviso ? 'cargar' : 'partidos');
   if (typeof Sync !== 'undefined') Sync.iniciar(cliente, uid);
 });
 window.addEventListener('arac:fin-sesion', () => {
