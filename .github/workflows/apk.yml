@@ -39,6 +39,21 @@ jobs:
       - name: Copiar la app al proyecto Android
         run: npx cap sync android
 
+      # Clave de firma fija (secretos del repositorio). Sin ella cada APK saldría con otra clave
+      # y no se podría instalar encima del anterior, así que la compilación se detiene.
+      - name: Preparar la clave de firma
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::Faltan los secretos ANDROID_KEYSTORE_BASE64 y ANDROID_KEYSTORE_PASSWORD (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/arac.keystore"
+          echo "ARAC_KEYSTORE=$RUNNER_TEMP/arac.keystore" >> "$GITHUB_ENV"
+          echo "ARAC_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+
       - name: Compilar
         run: |
           chmod +x android/gradlew

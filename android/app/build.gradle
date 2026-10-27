@@ -7,8 +7,10 @@ android {
         applicationId "com.arac.partidos"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // En GitHub cada compilación sube el número de versión (Android lo usa para las actualizaciones)
+        def compilacion = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
+        versionCode compilacion
+        versionName "1.0.${compilacion}"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +18,29 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    /* Clave de firma fija: Android sólo instala una versión nueva encima de la anterior si las dos
+       están firmadas con la misma clave. La clave no está en el repositorio: GitHub la arma desde
+       los secretos ANDROID_KEYSTORE_BASE64 y ANDROID_KEYSTORE_PASSWORD (ver .github/workflows/apk.yml).
+       Sin esas variables (compilando en la computadora) se usa la clave de debug de siempre. */
+    def claveArac = System.getenv('ARAC_KEYSTORE')
+    signingConfigs {
+        if (claveArac) {
+            arac {
+                storeFile file(claveArac)
+                storePassword System.getenv('ARAC_KEYSTORE_PASSWORD')
+                keyAlias 'arac'
+                keyPassword System.getenv('ARAC_KEYSTORE_PASSWORD')
+            }
+        }
+    }
     buildTypes {
+        debug {
+            if (claveArac) signingConfig signingConfigs.arac
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (claveArac) signingConfig signingConfigs.arac
         }
     }
 }

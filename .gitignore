@@ -9,3 +9,7 @@ android/app/src/main/assets/public/
 *.apk
 *.aab
 dist/
+
+# Claves de firma del APK (van como secretos de GitHub, nunca en el repositorio)
+*.keystore
+*.jks

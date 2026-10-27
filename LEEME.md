@@ -30,6 +30,18 @@ inicia sesión en otro teléfono y aparecen ahí. La app funciona sin internet y
 
 Para las versiones siguientes alcanza con `git push`: se compila sola y aparece un Release nuevo.
 
+### Clave de firma del APK
+Android sólo instala una versión nueva encima de la anterior si las dos están firmadas con la misma clave
+(si no, queda en *Instalando…* o dice *App no instalada*). Por eso GitHub firma todas las compilaciones con
+una clave fija, que **no** está en el repositorio: se carga una vez en
+**GitHub → Settings → Secrets and variables → Actions → New repository secret**:
+- `ANDROID_KEYSTORE_BASE64`: el archivo de la clave (`arac-partidos.keystore`) pasado a base64.
+- `ANDROID_KEYSTORE_PASSWORD`: su contraseña (alias de la clave: `arac`).
+
+Sin esos secretos la compilación se detiene con un aviso. Guardá la clave y la contraseña en un lugar seguro:
+si se pierden, hay que generar otra y desinstalar la app una vez en todos los teléfonos.
+Cada compilación sube sola el número de versión (`1.0.<número de compilación>`).
+
 ### En iPhone (versión web)
 iPhone no instala APKs: se usa la versión web, que se publica sola en cada `git push`
 (`.github/workflows/web.yml`) en **https://matumir.github.io/Digitalizaci-n-ARAC/app/**.
