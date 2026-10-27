@@ -2,7 +2,7 @@
    Guarda la app completa en el teléfono para que abra sin internet.
    VERSION y PRECACHE los completa scripts/preparar-web.mjs al publicar; cada publicación
    cambia este archivo, así el teléfono detecta que hay una versión nueva. */
-const VERSION = "6849995bd2";
+const VERSION = "c581e01d3b";
 const PRECACHE = [
  "admin.js",
  "app.css",
@@ -154,24 +154,29 @@ self.addEventListener('activate', e => {
   })());
 });
 
-// Recordatorio de los fines de semana (lo manda el servidor: supabase/functions/recordatorio)
+// Avisos que manda el servidor (supabase/functions/recordatorio): el recordatorio de los
+// fines de semana (abre Cargar partido) y los del administrador, como una versión nueva.
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { /* sin datos: va el texto de siempre */ }
+  const url = d.url || './#cargar';
   e.waitUntil(self.registration.showNotification(d.title || 'ARAC Partidos', {
     body: d.body || 'No te olvides de cargar los partidos de la jornada.',
     icon: 'icons/icon-192.png',
-    tag: 'arac-recordatorio',
-    data: { url: './#cargar' },
+    tag: url.includes('#cargar') ? 'arac-recordatorio' : 'arac-aviso',
+    data: { url },
   }));
 });
-// Al tocarlo: abre la app (o la trae al frente) en Cargar partido
+// Al tocarlo: abre la app (o la trae al frente); el recordatorio, en Cargar partido
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   e.waitUntil((async () => {
     const url = new URL(e.notification.data && e.notification.data.url || './', self.registration.scope).href;
     for (const c of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) {
-      if (c.url.startsWith(self.registration.scope)) { c.postMessage('abrir-cargar'); return c.focus(); }
+      if (c.url.startsWith(self.registration.scope)) {
+        if (url.includes('#cargar')) c.postMessage('abrir-cargar');
+        return c.focus();
+      }
     }
     return self.clients.openWindow(url);
   })());

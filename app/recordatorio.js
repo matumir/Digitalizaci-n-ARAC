@@ -126,7 +126,70 @@
       ? 'Enviada: llega en unos segundos.'
       : 'El servidor no encontró este teléfono. Desactivá y volvé a activar el recordatorio.';
   }
-  window.Recordatorio = { probar };
+  // Aviso del administrador a todos ('version' o 'recordatorio'): la versión web lo recibe al
+  // instante; todos (también el APK) lo ven en un cartel al abrir la app (ver revisarAvisos).
+  async function enviarATodos(tipo) {
+    const { data, error } = await sb.functions.invoke('recordatorio', { body: { tipo } });
+    if (error) throw new Error('¿Está desplegada la versión nueva de la función "recordatorio"?');
+    const n = (data && data.enviados) || 0;
+    return `Enviado. ${n ? `Llegó al instante a ${n === 1 ? '1 teléfono' : n + ' teléfonos'} con la versión web; ` : ''}` +
+      'todos lo ven al abrir la app.';
+  }
+  window.Recordatorio = { probar, enviarATodos };
+
+  // ---------------- Avisos del administrador (cartel al abrir la app) ----------------
+  const CLAVE_VISTO = 'arac-aviso-visto';        // id del último aviso visto en este teléfono
+  const AVISO_VIGENTE = 7 * 86400000;            // uno más viejo ya no se muestra
+  const URL_APK = 'https://github.com/matumir/Digitalizaci-n-ARAC/releases/latest';
+  const leerVisto = () => { try { return localStorage.getItem(CLAVE_VISTO); } catch (e) { return null; } };
+  const guardarVisto = id => { try { localStorage.setItem(CLAVE_VISTO, String(id)); } catch (e) {} };
+  let revisando = false;
+
+  async function revisarAvisos() {
+    if (!sb || !sesion || revisando || navigator.onLine === false) return;
+    revisando = true;
+    try {
+      const visto = leerVisto();
+      if (visto == null) {
+        // Primera vez en este teléfono: los avisos viejos no se muestran
+        const { data } = await sb.from('avisos').select('id').order('id', { ascending: false }).limit(1);
+        if (data) guardarVisto(data.length ? data[0].id : 0);
+        return;
+      }
+      const { data, error } = await sb.from('avisos').select('id, tipo, titulo, cuerpo, creado')
+        .gt('id', Number(visto)).order('id', { ascending: false }).limit(10);
+      if (error || !data || !data.length) return;
+      const ultimo = data[0];
+      if (Date.now() - Date.parse(ultimo.creado) > AVISO_VIGENTE) { guardarVisto(ultimo.id); return; }
+      mostrarAviso(ultimo);
+    } catch (e) { /* sin internet o falta correr admin.sql: se revisa la próxima vez */ }
+    finally { revisando = false; }
+  }
+
+  async function actualizarApp() {
+    if (nativo) { try { await Cap.Plugins.Browser.open({ url: URL_APK }); } catch (e) { window.open(URL_APK, '_blank'); } return; }
+    // Versión web: el aviso de pwa.js ("Hay una versión nueva · Actualizar") hace el cambio
+    const boton = $('#btn-actualizar');
+    if (!$('#actualizar').hidden) { boton.click(); return; }
+    toast('Buscando la versión nueva…');
+    try { if (registro) await registro.update(); } catch (e) {}
+    setTimeout(() => { if (!$('#actualizar').hidden) boton.click(); else toast('Ya tenés la versión más nueva'); }, 2000);
+  }
+
+  function mostrarAviso(a) {
+    const caja = $('#aviso-admin');
+    const cerrar = () => { guardarVisto(a.id); caja.hidden = true; };
+    const version = a.tipo === 'version';
+    $('#aviso-admin-texto').replaceChildren(el('b', {}, a.titulo), a.cuerpo);
+    const botones = $('#aviso-admin-botones');
+    botones.replaceChildren(
+      el('button', { type: 'button', class: 'btn btn-ghost', onclick: cerrar }, version ? 'Ahora no' : 'Cerrar'),
+      el('button', { type: 'button', class: 'btn btn-primary', onclick: () => { cerrar(); version ? actualizarApp() : mostrarVista('cargar'); } },
+        version ? (nativo ? 'Descargar' : 'Actualizar') : 'Cargar partido'));
+    caja.hidden = false;
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') revisarAvisos(); });
+  setInterval(() => { if (document.visibilityState === 'visible') revisarAvisos(); }, 5 * 60000);
 
   // ---------------- Pantalla ----------------
   const $ = s => document.querySelector(s);
@@ -175,6 +238,8 @@
       }
     } catch (err) { /* sin internet: queda como estaba */ }
     pintar();
+    revisarAvisos();
   });
-  window.addEventListener('arac:fin-sesion', () => { sesion = false; sb = null; pintar(); });
+  window.addEventListener('arac:fin-sesion', () => { sesion = false; sb = null; pintar(); $('#aviso-admin').hidden = true; });
+  window.addEventListener('online', revisarAvisos);
 })();
