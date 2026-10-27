@@ -393,6 +393,9 @@ main { max-width: 560px; margin: 0 auto; padding: 16px var(--gutter) calc(170px 
 .adm-resumen b { font-size: 1rem; font-weight: 650; letter-spacing: -0.015em; }
 .adm-resumen span { font-size: 0.8rem; color: var(--ink-muted); }
 .adm-resumen .btn { padding: 9px 14px; font-size: 0.84rem; flex: none; }
+.adm-tarjeta { flex-direction: column; align-items: stretch; }
+.adm-resumen > .adm-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.adm-acciones .btn { flex: 1 1 auto; }
 .adm-prueba { margin-top: 10px; }
 .adm-prueba span { line-height: 1.35; }
 .adm-buscar { position: relative; margin-top: 10px; }
@@ -422,7 +425,9 @@ main { max-width: 560px; margin: 0 auto; padding: 16px var(--gutter) calc(170px 
   background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--radius-card); box-shadow: var(--shadow);
 }
 .adm-arbitro-cab .arbitro-avatar { width: 50px; height: 50px; font-size: 1rem; }
-.adm-arbitro-cab > div { min-width: 0; display: grid; gap: 2px; }
+.adm-arbitro-cab > div { flex: 1; min-width: 0; display: grid; gap: 2px; justify-items: start; }
+.adm-arbitro-cab > div > span { justify-self: stretch; }
+.adm-arbitro-cab .btn { flex: none; padding: 9px 14px; font-size: 0.84rem; }
 .adm-arbitro-cab b { font-size: 1rem; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .adm-arbitro-cab span { font-size: 0.78rem; color: var(--ink-muted); overflow-wrap: anywhere; }
 .adm-arbitro-cuerpo { display: grid; gap: 12px; min-width: 0; }

@@ -86,3 +86,111 @@ create policy "admin ve todas las fotos" on public.fotos for select to authentic
 drop policy if exists "fotos: el admin ve todas" on storage.objects;
 create policy "fotos: el admin ve todas" on storage.objects for select to authenticated
   using (bucket_id = 'fotos' and (select public.es_admin()));
+
+-- =========================================================
+-- 4. Añadir árbitros a la whitelist desde el panel
+--    Devuelve true si era nuevo, false si ya estaba (entonces sólo actualiza el nombre).
+-- =========================================================
+create or replace function public.admin_agregar_arbitro(p_email text, p_nombre text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  mail text := lower(trim(p_email));
+  nuevo boolean;
+begin
+  if not public.es_admin() then
+    raise exception 'Sólo para administradores';
+  end if;
+  if mail !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+    raise exception 'Mail inválido: %', p_email;
+  end if;
+  nuevo := not exists (select 1 from public.whitelist w where w.email = mail);
+  insert into public.whitelist as wl (email, nombre) values (mail, nullif(trim(p_nombre), ''))
+  on conflict (email) do update set nombre = coalesce(excluded.nombre, wl.nombre);
+  return nuevo;
+end;
+$$;
+
+revoke all on function public.admin_agregar_arbitro(text, text) from public, anon;
+grant execute on function public.admin_agregar_arbitro(text, text) to authenticated;
+
+-- Cambiar el mail o el nombre. Ojo: si ya había entrado, con el mail nuevo es otra cuenta de
+-- Google, así que sus partidos quedan en la cuenta anterior (el panel lo avisa).
+create or replace function public.admin_editar_arbitro(p_email_actual text, p_email_nuevo text, p_nombre text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actual text := lower(trim(p_email_actual));
+  nuevo  text := lower(trim(p_email_nuevo));
+begin
+  if not public.es_admin() then
+    raise exception 'Sólo para administradores';
+  end if;
+  if nuevo !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+    raise exception 'Mail inválido: %', p_email_nuevo;
+  end if;
+  if nuevo <> actual and actual = lower(auth.jwt() ->> 'email') then
+    raise exception 'No podés cambiar tu propio mail: perderías el acceso de administrador';
+  end if;
+  if nuevo <> actual and exists (select 1 from public.whitelist w where w.email = nuevo) then
+    raise exception 'Ya hay un árbitro con el mail %', nuevo;
+  end if;
+  update public.whitelist set email = nuevo, nombre = nullif(trim(p_nombre), '') where email = actual;
+  if not found then
+    raise exception 'No está en la lista: %', actual;
+  end if;
+end;
+$$;
+
+-- Quitar de la whitelist: no puede volver a entrar (si tenía la app abierta, se le cierra la
+-- sesión al conectarse). Sus partidos no se borran: el panel los sigue mostrando.
+create or replace function public.admin_quitar_arbitro(p_email text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  mail text := lower(trim(p_email));
+begin
+  if not public.es_admin() then
+    raise exception 'Sólo para administradores';
+  end if;
+  if mail = lower(auth.jwt() ->> 'email') then
+    raise exception 'No podés quitarte a vos mismo';
+  end if;
+  delete from public.whitelist where email = mail;
+end;
+$$;
+
+revoke all on function public.admin_editar_arbitro(text, text, text) from public, anon;
+revoke all on function public.admin_quitar_arbitro(text) from public, anon;
+grant execute on function public.admin_editar_arbitro(text, text, text) to authenticated;
+grant execute on function public.admin_quitar_arbitro(text) to authenticated;
+
+-- =========================================================
+-- 5. Avisos que el administrador manda a todos (versión nueva, recordatorio).
+--    Los guarda la Edge Function "recordatorio"; cada teléfono los muestra al abrir la app
+--    (en el APK es la única forma de que lleguen), y la versión web además los recibe al instante.
+-- =========================================================
+create table if not exists public.avisos (
+  id     bigint      generated always as identity primary key,
+  tipo   text        not null check (tipo in ('version', 'recordatorio')),
+  titulo text        not null,
+  cuerpo text        not null,
+  autor  uuid        references auth.users (id) on delete set null,
+  creado timestamptz not null default now()
+);
+alter table public.avisos enable row level security;
+revoke all on public.avisos from anon, authenticated;
+grant select on public.avisos to authenticated;
+
+drop policy if exists "avisos: los ven los autorizados" on public.avisos;
+create policy "avisos: los ven los autorizados" on public.avisos for select to authenticated
+  using ((select public.es_autorizado()));

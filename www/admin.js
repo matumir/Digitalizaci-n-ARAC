@@ -55,6 +55,7 @@ async function revisarAdmin() {
   if (!ADM.es && vistaActual === 'admin') mostrarVista('partidos');
 }
 window.addEventListener('arac:sesion', e => {
+  ADM.miMail = (e.detail.email || '').toLowerCase();
   if (ADM.sb === e.detail.cliente && ADM.es) return;
   ADM.sb = e.detail.cliente;
   revisarAdmin();
@@ -93,21 +94,33 @@ function pintarArbitros() {
   const iBuscar = el('input', { type: 'search', class: 'buscar', placeholder: 'Buscar por nombre o mail' });
   iBuscar.value = ADM.buscar;
   iBuscar.addEventListener('input', () => { ADM.buscar = iBuscar.value; pintarFilas(); });
-  // Probar el recordatorio de los fines de semana en este teléfono
-  const estadoPrueba = el('span', {}, 'Manda ahora el recordatorio a este teléfono.');
-  const btnPrueba = el('button', { type: 'button', class: 'btn btn-ghost', onclick: async () => {
-    btnPrueba.disabled = true; estadoPrueba.textContent = 'Enviando…';
-    try { estadoPrueba.textContent = await window.Recordatorio.probar(); }
-    catch (e) { estadoPrueba.textContent = navigator.onLine === false ? 'Sin conexión.' : `No se pudo enviar. ${(e && e.message) || ''}`.trim(); }
-    btnPrueba.disabled = false;
-  } }, 'Probar');
+  // Notificaciones: avisos a todos los árbitros (piden confirmar) y prueba en este teléfono
+  const estadoNotif = el('span', {}, 'Mandá un aviso a todos los árbitros.');
+  const botonesNotif = [];
+  const notificar = (texto, accion, confirmar) => {
+    const b = el('button', { type: 'button', class: 'btn btn-ghost' }, texto);
+    const correr = async () => {
+      botonesNotif.forEach(x => { x.disabled = true; }); estadoNotif.textContent = 'Enviando…';
+      try { estadoNotif.textContent = await accion(); }
+      catch (e) { estadoNotif.textContent = navigator.onLine === false ? 'Sin conexión.' : `No se pudo enviar. ${(e && e.message) || ''}`.trim(); }
+      botonesNotif.forEach(x => { x.disabled = false; });
+    };
+    if (confirmar) dosToques(b, correr, confirmar); else b.addEventListener('click', correr);
+    botonesNotif.push(b);
+    return b;
+  };
   resumen.append(
-    el('div', { class: 'adm-resumen' },
+    el('div', { class: 'adm-resumen adm-tarjeta' },
       el('div', {}, el('b', {}, plural(todos.length, 'árbitro', 'árbitros')), el('span', {}, plural(total, 'partido cargado', 'partidos cargados'))),
-      el('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { ADM.arbitros = null; renderAdmin(); } }, 'Actualizar')),
-    el('div', { class: 'adm-resumen adm-prueba' },
-      el('div', {}, el('b', {}, 'Notificaciones'), estadoPrueba),
-      btnPrueba),
+      el('div', { class: 'adm-acciones' },
+        el('button', { type: 'button', class: 'btn btn-primary', onclick: () => editorArbitro() }, 'Añadir árbitro'),
+        el('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { ADM.arbitros = null; renderAdmin(); } }, 'Actualizar'))),
+    el('div', { class: 'adm-resumen adm-tarjeta adm-prueba' },
+      el('div', {}, el('b', {}, 'Notificaciones'), estadoNotif),
+      el('div', { class: 'adm-acciones' },
+        notificar('Recordar cargar partidos', () => window.Recordatorio.enviarATodos('recordatorio'), '¿Enviar a todos?'),
+        notificar('Avisar versión nueva', () => window.Recordatorio.enviarATodos('version'), '¿Enviar a todos?'),
+        notificar('Probar en este teléfono', () => window.Recordatorio.probar()))),
     el('div', { class: 'adm-buscar' }, icono('<svg class="buscar-ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>'), iBuscar));
   pintarFilas();
 }
@@ -124,10 +137,8 @@ function pintarFilas() {
     const n = Number(a.partidos || 0);
     const estado = !a.user_id ? 'Todavía no inició sesión'
       : n ? `Último cambio ${cuandoFue(a.ultimo)}` : 'Sin partidos cargados';
-    lista.append(el('button', { type: 'button', class: 'arbitro' + (a.user_id ? '' : ' sin-ingreso'), onclick: () => {
-      if (!a.user_id) { toast('Todavía no inició sesión en la app'); return; }
-      abrirArbitro(a);
-    } },
+    // Si todavía no entró no tiene partidos: se abre directo para editarlo
+    lista.append(el('button', { type: 'button', class: 'arbitro' + (a.user_id ? '' : ' sin-ingreso'), onclick: () => (a.user_id ? abrirArbitro(a) : editorArbitro(a)) },
       el('span', { class: 'arbitro-avatar' }, inicialesDe(a) || '?'),
       el('span', { class: 'arbitro-txt' },
         el('b', {}, nombreArbitro(a)),
@@ -139,11 +150,113 @@ function pintarFilas() {
   });
 }
 
+// ---------------- Añadir, editar o quitar árbitros de la whitelist ----------------
+const MAIL_VALIDO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const textoErrorRpc = e => (navigator.onLine === false ? 'Sin conexión: probá de nuevo con internet.'
+  : /could not find the function|schema cache/i.test((e && e.message) || '') ? 'Falta volver a correr supabase/admin.sql en Supabase.'
+  : `No se pudo guardar. ${(e && e.message) || ''}`.trim());
+
+// Después de un cambio: la lista se vuelve a pedir; si está abierta la hoja del árbitro, se repinta
+function trasCambiarArbitro(a, cambios) {
+  ADM.arbitros = null;
+  if (a && ADM.actual === a) {
+    Object.assign(a, cambios);
+    $('#h-arbitro-titulo').textContent = nombreArbitro(a);
+    pintarArbitro();
+  } else if (vistaActual === 'admin') renderAdmin();
+}
+
+/* Sin a: añadir. Con a de la whitelist: editar nombre y mail, o quitarlo.
+   Con a fuera de la whitelist (tiene partidos pero lo quitaron): volver a añadirlo. */
+function editorArbitro(a) {
+  const editar = !!(a && a.autorizado);
+  const propio = editar && ADM.sb && a.email === ADM.miMail;
+  $('#inc-titulo').textContent = editar ? 'Editar árbitro' : a ? 'Volver a añadir' : 'Añadir árbitro';
+  $('#inc-equipo').textContent = editar ? a.email : 'Va a poder entrar a la app con esa cuenta de Google.';
+  const cuerpo = $('#inc-cuerpo'); cuerpo.innerHTML = '';
+  const iNombre = el('input', { type: 'text', class: 'campo', placeholder: 'Ej: Juan Pérez', maxlength: 80, autocapitalize: 'words', autocomplete: 'off' });
+  const iMail = el('input', { type: 'email', class: 'campo', placeholder: 'Ej: juanperez@gmail.com', maxlength: 120, inputmode: 'email', autocapitalize: 'none', autocomplete: 'off', spellcheck: 'false' });
+  iNombre.value = (a && a.nombre) || '';
+  iMail.value = (a && a.email) || '';
+  if (propio) iMail.disabled = true;               // cambiarse el mail le sacaría el acceso
+  const error = el('p', { class: 'inc-error', role: 'alert' });
+  const aviso = el('p', { class: 'inc-aviso' });
+  const textoBtn = editar ? 'Guardar' : 'Añadir';
+  const btn = el('button', { type: 'button', class: 'btn btn-primary' }, textoBtn);
+  const mail = () => iMail.value.trim().toLowerCase();
+  const validar = () => {
+    const m = mail();
+    const otro = (ADM.arbitros || []).find(x => x.email === m && x.autorizado && (!editar || x.email !== a.email));
+    const msg = !m ? '' : !MAIL_VALIDO.test(m) ? 'Revisá el mail: tiene que ser como nombre@gmail.com.'
+      : editar && otro ? 'Ya hay otro árbitro con ese mail.' : '';
+    iMail.classList.toggle('campo-error', !!msg);
+    error.textContent = msg;
+    const cambiaMail = editar && m !== a.email;
+    aviso.textContent = msg || !m ? ''
+      : cambiaMail && a.user_id ? `Ya entró con ${a.email}: con el mail nuevo va a ser otra cuenta de Google y sus partidos quedan en la anterior.`
+      : !editar && otro ? 'Ya está en la lista: se va a actualizar el nombre.'
+      : !/@gmail\.com$/.test(m) ? 'No es Gmail: sirve sólo si es una cuenta de Google (por ejemplo, de Google Workspace).'
+      : propio ? 'Tu propio mail no se puede cambiar desde acá.' : '';
+    btn.disabled = !m || !!msg;
+    return !btn.disabled;
+  };
+  iMail.addEventListener('input', validar);
+  const guardar = async () => {
+    if (!validar()) return;
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    try {
+      const nombre = iNombre.value.trim();
+      if (editar) {
+        const { error: e } = await ADM.sb.rpc('admin_editar_arbitro', { p_email_actual: a.email, p_email_nuevo: mail(), p_nombre: nombre });
+        if (e) throw e;
+        cerrarCapa(); toast('Cambios guardados ✓');
+        trasCambiarArbitro(a, { email: mail(), nombre: nombre || null });
+      } else {
+        const { data, error: e } = await ADM.sb.rpc('admin_agregar_arbitro', { p_email: mail(), p_nombre: nombre });
+        if (e) throw e;
+        cerrarCapa(); toast(data ? 'Árbitro añadido ✓' : 'Ya estaba en la lista: nombre actualizado');
+        trasCambiarArbitro(a, { email: mail(), nombre: nombre || null, autorizado: true });
+      }
+    } catch (e) {
+      error.textContent = textoErrorRpc(e);
+      btn.disabled = false; btn.textContent = textoBtn;
+    }
+  };
+  btn.addEventListener('click', guardar);
+  iMail.addEventListener('keydown', e => { if (e.key === 'Enter') guardar(); });
+
+  const acciones = el('div', { class: 'inc-acciones' });
+  if (editar && !propio) {
+    // Quitar: deja de poder entrar; sus partidos no se borran
+    acciones.append(dosToques(el('button', { type: 'button', class: 'btn btn-peligro-ghost' }, 'Quitar'), async () => {
+      try {
+        const { error: e } = await ADM.sb.rpc('admin_quitar_arbitro', { p_email: a.email });
+        if (e) throw e;
+        cerrarCapa(); toast(`${nombreArbitro(a)} ya no puede entrar a la app`);
+        trasCambiarArbitro(a, { autorizado: false });
+      } catch (e) { error.textContent = textoErrorRpc(e); }
+    }, '¿Quitar?'));
+  }
+  acciones.append(btn);
+  cuerpo.append(
+    el('label', { class: 'field' }, el('span', { class: 'field-label' }, 'Nombre'), iNombre),
+    el('label', { class: 'field' }, el('span', { class: 'field-label' }, 'Gmail'), iMail),
+    error, aviso,
+    editar && !propio ? el('p', { class: 'fotos-nota' }, 'Si lo quitás, no puede volver a entrar a la app. Sus partidos no se borran: los seguís viendo acá.') : null,
+    acciones);
+  validar();
+  abrirCapa('#h-inc');
+  if (!editar) setTimeout(() => iNombre.focus(), 380);
+}
+
 // ---------------- Partidos de un árbitro ----------------
 function abrirArbitro(a) {
   ADM.actual = a;
   $('#h-arbitro-titulo').textContent = nombreArbitro(a);
-  abrirCapa('#h-arbitro', () => { if (ADM.actual === a) ADM.actual = null; });
+  abrirCapa('#h-arbitro', () => {
+    if (ADM.actual === a) ADM.actual = null;
+    if (!ADM.arbitros && vistaActual === 'admin') renderAdmin();   // se editó: la lista se actualiza
+  });
   $('#h-arbitro').scrollTop = 0;
   cargarArbitro(a);
 }
@@ -177,7 +290,9 @@ function pintarArbitro(animarLista = false) {
   const cab = el('div', { class: 'adm-arbitro-cab' },
     el('span', { class: 'arbitro-avatar' }, inicialesDe(a) || '?'),
     el('div', {}, el('b', {}, nombreArbitro(a)), el('span', {}, a.email),
-      el('span', {}, [plural(todos.length, 'partido', 'partidos'), a.ingreso ? `entró ${cuandoFue(a.ingreso)}` : ''].filter(Boolean).join(' · '))));
+      el('span', {}, [plural(todos.length, 'partido', 'partidos'), a.ingreso ? `entró ${cuandoFue(a.ingreso)}` : ''].filter(Boolean).join(' · ')),
+      a.autorizado ? null : el('em', { class: 'etiqueta mal' }, 'Fuera de la whitelist')),
+    el('button', { type: 'button', class: 'btn btn-ghost', onclick: () => editorArbitro(a) }, a.autorizado ? 'Editar' : 'Volver a añadir'));
   cuerpo.append(cab);
   if (!todos.length) { const v = el('div', {}); admAviso(v, 'Este árbitro todavía no cargó partidos.'); cuerpo.append(v); return; }
 

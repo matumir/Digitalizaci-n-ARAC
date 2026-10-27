@@ -109,6 +109,23 @@ Se configura una vez, después de la sincronización:
    una versión vieja, con el permiso de administrador, bajaría al teléfono los de todos).
 2. **SQL Editor**: pegá `supabase/admin.sql` y tocá *Run*. Deja como administrador a `mateojmiranda04@gmail.com`.
 
+Desde la misma pestaña el administrador también puede:
+- **Añadir árbitro**: nombre y Gmail. Queda en la whitelist y ya puede entrar con esa cuenta de Google
+  (si el mail ya estaba, sólo se actualiza el nombre).
+- **Editar o quitar un árbitro**: desde su ficha (botón *Editar*), o tocándolo en la lista si todavía no entró.
+  Se puede cambiar el nombre y el Gmail; si ya había entrado, con el mail nuevo es otra cuenta de Google y sus
+  partidos quedan en la anterior (el panel lo avisa). *Quitar* lo saca de la whitelist: no puede volver a entrar,
+  pero sus partidos no se borran y se siguen viendo en el panel (con *Volver a añadir* se lo autoriza de nuevo).
+  El administrador no puede quitarse ni cambiarse el mail a sí mismo.
+- **Notificaciones → Recordar cargar partidos / Avisar versión nueva**: un aviso a todos los árbitros
+  (pide tocar dos veces para confirmar). En la versión web llega al instante como notificación a los que
+  activaron el recordatorio; además, todos (también los del APK) lo ven en un cartel la próxima vez que abren
+  la app. En el APK el cartel de versión nueva tiene un botón para descargar el último APK.
+- **Probar en este teléfono**: manda el recordatorio sólo al teléfono del administrador.
+
+Estas funciones necesitan haber corrido la versión actual de `supabase/admin.sql` (se puede volver a correr)
+y la versión actual de la Edge Function `recordatorio` (si ya estaba creada, pegá el código nuevo y desplegala).
+
 Para sumar otro administrador (tiene que estar en la whitelist):
 `update public.whitelist set admin = true where email = 'mail@gmail.com';`
 Para quitarlo: `update public.whitelist set admin = false where email = 'mail@gmail.com';`
