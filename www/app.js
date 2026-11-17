@@ -412,7 +412,7 @@ window.addEventListener('popstate', () => {
 });
 document.addEventListener('click', e => { if (e.target.closest('[data-cerrar]')) cerrarCapa(); });
 
-const TITULOS = { partidos: 'Partidos', cargar: 'Cargar partido', admin: 'Árbitros' };
+const TITULOS = { partidos: 'Partidos', cargar: 'Cargar partido', desig: 'Designaciones', admin: 'Árbitros' };
 let vistaActual = 'partidos';
 document.querySelectorAll('.bottomnav .nav-btn').forEach(b => b.addEventListener('click', () => mostrarVista(b.dataset.vista)));
 function mostrarVista(v) {
@@ -426,6 +426,7 @@ function mostrarVista(v) {
   window.scrollTo(0, 0);
   if (v === 'partidos') renderPartidos(true);
   if (v === 'cargar') renderCargar();
+  if (v === 'desig') renderDesignaciones();   // designaciones.js
   if (v === 'admin') renderAdmin();   // admin.js
 }
 
@@ -1667,6 +1668,7 @@ $('#btn-sync-ahora').addEventListener('click', sincronizarYa);
 // La nube trajo cambios: repintar si no hay nada abierto encima
 window.addEventListener('arac:sync-cambios', () => {
   if (!pila.length && vistaActual === 'partidos') renderPartidos();
+  if (!pila.length && vistaActual === 'desig') renderDesignaciones();
 });
 
 // ---------------- Inicio ----------------

@@ -833,3 +833,43 @@ button, .btn, label.btn { touch-action: manipulation; -webkit-touch-callout: non
 .version-nota:empty { display: none; }
 .version-botones { display: flex; gap: 10px; }
 .version-botones .btn { flex: 1; }
+
+/* Designaciones (designaciones.js) */
+.desig { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.desig-filas { grid-template-columns: minmax(0, 1fr); }
+.desig-modos .chip { flex: 1; text-align: center; }
+.desig-total { display: grid; gap: 2px; padding: 4px 2px 0; }
+.desig-total b { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+.desig-total span { font-size: 0.8rem; color: var(--ink-muted); }
+.desig-filas { display: grid; gap: 4px; }
+.desig-filas > .chips { margin-bottom: 6px; }
+.desig-fila {
+  display: grid; grid-template-columns: 38px minmax(0, 1fr) 62px 26px; align-items: center; gap: 8px;
+  width: 100%; padding: 8px 4px; border-radius: 10px; text-align: left;
+}
+.desig-fila.abierta { background: var(--surface-2); }
+.desig-fila.futuro { opacity: .38; }
+.desig-et { font-size: 0.82rem; font-weight: 600; color: var(--ink-2); }
+.desig-barra { position: relative; height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.desig-barra i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; transition: width var(--t-largo) var(--curva); }
+.desig-act { background: var(--acento); }
+.desig-prev { background: color-mix(in srgb, var(--acento) 26%, transparent); }
+.desig-barra .desig-act { top: 3px; bottom: 3px; }
+.desig-num { display: grid; justify-items: end; min-width: 30px; }
+.desig-num b { font-size: 0.98rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.desig-num small { font-size: 0.66rem; color: var(--ink-muted); white-space: nowrap; }
+.desig-dif { justify-self: end; font-size: 0.72rem; font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.desig-dif.sube { color: var(--good); }
+.desig-dif.baja { color: var(--bad); }
+.desig-leyenda { display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--ink-muted); margin: -2px 0 4px; }
+.desig-leyenda i { display: inline-block; width: 14px; height: 8px; border-radius: 4px; }
+.desig-leyenda i:nth-of-type(2) { margin-left: 8px; }
+.desig-dias { display: grid; gap: 2px; margin: 0 4px 6px 56px; padding-left: 10px; border-left: 2px solid var(--hairline); }
+.desig-dia { display: grid; gap: 1px; padding: 5px 0; font-size: 0.84rem; }
+.desig-dia span::first-letter { text-transform: uppercase; }
+.desig-dia small { font-size: 0.74rem; color: var(--ink-muted); }
+.adm-desig { gap: 10px; min-width: 0; }
+.adm-desig > * { min-width: 0; }
+.adm-desig > .chips { display: flex; }
+.adm-desig .chips { margin: 0 -2px; }
+.adm-orden { align-self: center; font-size: 0.78rem; color: var(--ink-muted); flex: none; }

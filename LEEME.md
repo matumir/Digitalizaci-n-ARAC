@@ -62,6 +62,8 @@ También sirve en Android (Chrome → Instalar) y en la computadora.
 - `supabase/setup.sql` — whitelist de cuentas. `supabase/sync.sql` — tablas, archivos y borrado de fotos a los 15 días.
 - `www/admin.js` y `supabase/admin.sql` — panel de administrador (ver todos los árbitros y sus partidos).
 - `www/recordatorio.js`, `supabase/recordatorio.sql` y `supabase/functions/recordatorio/` — aviso de los fines de semana.
+- `www/designaciones.js` — contador de designaciones (un día con partidos = una designación), en la vista
+  Designaciones y en el panel de administrador.
 - `www/version.json` y `www/actualizaciones.js` — número de versión y aviso de versión nueva.
 - `www/manifest.webmanifest`, `www/sw.js`, `www/pwa.js`, `www/icons/` — versión web instalable (PWA).
 - `scripts/preparar-web.mjs` — arma la versión web en `dist/` (lista de archivos para usar sin internet).

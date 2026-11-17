@@ -1,4 +1,4 @@
 {
-  "version": "1.1",
-  "nota": "Ahora podés indicar la instancia de cada partido: fase regular, octavos, cuartos, semifinal o final (y en la Liga Regional, la categoría A o B y el torneo o la copa). Además, la app avisa cuando hay una versión nueva."
+  "version": "1.2",
+  "nota": "Nuevo contador de designaciones: mirá cuántas tuviste por año y por mes, comparadas con el año anterior. Varios partidos el mismo día cuentan como una designación."
 }
