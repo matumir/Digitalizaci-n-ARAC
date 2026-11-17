@@ -147,6 +147,11 @@
     </div>
   </section>
 
+  <!-- ============ DESIGNACIONES ============ -->
+  <section id="v-desig" class="vista" hidden>
+    <div id="desig-cuerpo"></div>
+  </section>
+
   <!-- ============ ÁRBITROS (sólo administrador) ============ -->
   <section id="v-admin" class="vista" hidden>
     <div id="adm-resumen"></div>
@@ -162,6 +167,10 @@
   <button type="button" class="nav-btn nav-cargar" data-vista="cargar">
     <span class="nav-mas"><svg viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></svg></span>
     Cargar
+  </button>
+  <button type="button" class="nav-btn" data-vista="desig">
+    <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M8.5 3v4M15.5 3v4M8.5 13.5h2M13.5 13.5h2M8.5 16.5h2"/></svg>
+    Designaciones
   </button>
   <button type="button" class="nav-btn" data-vista="admin" id="nav-admin" hidden>
     <svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M15.8 14.1c2.3-.2 4.2 1.3 4.7 4.4"/></svg>
@@ -325,6 +334,7 @@
 <script src="config.js"></script>
 <script src="datos-clubes.js"></script>
 <script src="app.js"></script>
+<script src="designaciones.js"></script>
 <script src="sync.js"></script>
 <script src="admin.js"></script>
 <script src="recordatorio.js"></script>

@@ -2,7 +2,7 @@
    Guarda la app completa en el teléfono para que abra sin internet.
    VERSION y PRECACHE los completa scripts/preparar-web.mjs al publicar; cada publicación
    cambia este archivo, así el teléfono detecta que hay una versión nueva. */
-const VERSION = "aa4ee49753";
+const VERSION = "9466d904d0";
 const PRECACHE = [
  "actualizaciones.js",
  "admin.js",
@@ -11,6 +11,7 @@ const PRECACHE = [
  "auth.js",
  "config.js",
  "datos-clubes.js",
+ "designaciones.js",
  "icons/apple-touch-icon.png",
  "icons/icon-192.png",
  "icons/icon-512.png",

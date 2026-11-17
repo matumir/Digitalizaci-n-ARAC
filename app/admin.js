@@ -2,10 +2,14 @@
 /* ARAC Partidos — panel de administrador (tablas y permisos en supabase/admin.sql).
 
    Sólo aparece para las cuentas marcadas como admin en la whitelist. Muestra todos los
-   árbitros, los partidos de cada uno y el detalle completo de cada partido, en sólo lectura.
+   árbitros con sus designaciones (por año o por mes), los partidos de cada uno y el detalle
+   completo de cada partido, en sólo lectura.
    Se lee directo de la nube (necesita internet): no se guarda nada en este teléfono. */
 
-const ADM = { sb: null, es: false, arbitros: null, actual: null, detalle: null, partidos: [], fotos: {}, liga: null, cat: 'todas', buscar: '' };
+const ADM = { sb: null, es: false, arbitros: null, actual: null, detalle: null, partidos: [], fotos: {}, liga: null, cat: 'todas', buscar: '',
+  dias: null,                                            // user_id → días con partidos (designaciones.js)
+  periodo: { anio: new Date().getFullYear(), mes: null }, // anio null: todo; mes 1-12 o null: todo el año
+  orden: 'nombre', desig: {} };
 const ADM_LOTE = 1000;
 const ADM_DIAS_NUBE = 15;
 
@@ -61,7 +65,7 @@ window.addEventListener('arac:sesion', e => {
   revisarAdmin();
 });
 window.addEventListener('arac:fin-sesion', () => {
-  Object.assign(ADM, { sb: null, es: false, arbitros: null, actual: null, partidos: [], fotos: {} });
+  Object.assign(ADM, { sb: null, es: false, arbitros: null, actual: null, partidos: [], fotos: {}, dias: null, desig: {} });
   $('#nav-admin').hidden = true;
   $('#adm-lista').innerHTML = ''; $('#adm-resumen').innerHTML = '';
 });
@@ -76,9 +80,16 @@ async function renderAdmin() {
     lista.innerHTML = '';
     lista.append(el('p', { class: 'adm-cargando' }, 'Cargando árbitros…'));
     try {
-      const { data, error } = await ADM.sb.rpc('admin_arbitros');
+      // Árbitros y, de todos sus partidos, sólo fecha y liga para contar designaciones
+      const [{ data, error }, filas] = await Promise.all([
+        ADM.sb.rpc('admin_arbitros'),
+        admTodas(() => ADM.sb.from('partidos').select('user_id,id,fecha:datos->>fecha,liga:datos->>liga').eq('borrado', false).order('user_id').order('id')),
+      ]);
       if (error) throw error;
       ADM.arbitros = (data || []).sort((a, b) => sinTildes(nombreArbitro(a)).localeCompare(sinTildes(nombreArbitro(b))));
+      const porUsuario = new Map();
+      filas.forEach(f => { if (!porUsuario.has(f.user_id)) porUsuario.set(f.user_id, []); porUsuario.get(f.user_id).push(f); });
+      ADM.dias = new Map([...porUsuario].map(([u, ps]) => [u, diasDesignados(ps)]));
     } catch (e) {
       admAviso(lista, textoFallo(e), renderAdmin);
       return;
@@ -115,6 +126,7 @@ function pintarArbitros() {
       el('div', { class: 'adm-acciones' },
         el('button', { type: 'button', class: 'btn btn-primary', onclick: () => editorArbitro() }, 'Añadir árbitro'),
         el('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { ADM.arbitros = null; renderAdmin(); } }, 'Actualizar'))),
+    tarjetaDesignaciones(),
     el('div', { class: 'adm-resumen adm-tarjeta adm-prueba' },
       el('div', {}, el('b', {}, 'Notificaciones'), estadoNotif),
       el('div', { class: 'adm-acciones' },
@@ -125,18 +137,50 @@ function pintarArbitros() {
   pintarFilas();
 }
 
+// ---------------- Designaciones de cada árbitro ----------------
+const periodoAdm = () => (ADM.periodo.anio == null ? '' : ADM.periodo.anio + (ADM.periodo.mes ? '-' + String(ADM.periodo.mes).padStart(2, '0') : ''));
+const desigDe = a => (a.user_id && ADM.dias && ADM.dias.has(a.user_id) ? contarPeriodo(ADM.dias.get(a.user_id), periodoAdm()).d : 0);
+
+// Elegir el período (año y mes) y el orden de la lista
+function tarjetaDesignaciones() {
+  const caja = el('div', { class: 'adm-resumen adm-tarjeta adm-prueba adm-desig' });
+  const chip = (texto, sel, onclick) => el('button', { type: 'button', class: 'chip' + (sel ? ' sel' : ''), onclick }, texto);
+  function pintar() {
+    const p = ADM.periodo;
+    const anioHoy = new Date().getFullYear();
+    const anios = [...new Set([anioHoy, ...[...(ADM.dias || new Map()).values()].flatMap(d => [...d.keys()].map(f => Number(f.slice(0, 4))))])].sort((x, y) => y - x);
+    const cambiar = c => { Object.assign(p, c); pintar(); pintarFilas(); };
+    const ordenar = o => { ADM.orden = o; pintar(); pintarFilas(); };
+    const total = (ADM.arbitros || []).reduce((s, a) => s + desigDe(a), 0);
+    caja.replaceChildren(
+      el('div', {}, el('b', {}, 'Designaciones'),
+        el('span', {}, `${cantidad(total, 'designación', 'designaciones')} ${textoPeriodo(periodoAdm())} entre todos. Varios partidos el mismo día cuentan como una.`)),
+      el('div', { class: 'chips' }, chip('Todo', p.anio == null, () => cambiar({ anio: null, mes: null })),
+        anios.map(x => chip(String(x), p.anio === x, () => cambiar({ anio: x })))),
+      p.anio == null ? null : el('div', { class: 'chips' }, chip('Todo el año', !p.mes, () => cambiar({ mes: null })),
+        MESES_CORTO.map((m, i) => chip(m, p.mes === i + 1, () => cambiar({ mes: i + 1 })))),
+      el('div', { class: 'chips' }, el('span', { class: 'adm-orden' }, 'Ordenar:'),
+        chip('Por nombre', ADM.orden === 'nombre', () => ordenar('nombre')),
+        chip('Más designaciones', ADM.orden === 'desig', () => ordenar('desig'))));
+  }
+  pintar();
+  return caja;
+}
+
 function pintarFilas() {
   const lista = $('#adm-lista'); lista.innerHTML = '';
   const q = sinTildes(ADM.buscar.trim());
   const filtrados = (ADM.arbitros || []).filter(a => !q || sinTildes(nombreArbitro(a)).includes(q) || sinTildes(a.email).includes(q));
+  if (ADM.orden === 'desig') filtrados.sort((x, y) => desigDe(y) - desigDe(x));   // sort es estable: a igual cantidad, por nombre
   if (!filtrados.length) {
     admAviso(lista, ADM.arbitros && ADM.arbitros.length ? 'Ningún árbitro coincide con la búsqueda.' : 'Todavía no hay árbitros en la whitelist.');
     return;
   }
   filtrados.forEach(a => {
     const n = Number(a.partidos || 0);
+    const d = desigDe(a);
     const estado = !a.user_id ? 'Todavía no inició sesión'
-      : n ? `Último cambio ${cuandoFue(a.ultimo)}` : 'Sin partidos cargados';
+      : n ? `${plural(n, 'partido', 'partidos')} · último cambio ${cuandoFue(a.ultimo)}` : 'Sin partidos cargados';
     // Si todavía no entró no tiene partidos: se abre directo para editarlo
     lista.append(el('button', { type: 'button', class: 'arbitro' + (a.user_id ? '' : ' sin-ingreso'), onclick: () => (a.user_id ? abrirArbitro(a) : editorArbitro(a)) },
       el('span', { class: 'arbitro-avatar' }, inicialesDe(a) || '?'),
@@ -146,7 +190,7 @@ function pintarFilas() {
         el('span', { class: 'arbitro-estado' }, estado,
           a.admin ? el('em', { class: 'etiqueta' }, 'Admin') : null,
           a.autorizado ? null : el('em', { class: 'etiqueta mal' }, 'Fuera de la whitelist'))),
-      el('span', { class: 'arbitro-num' }, el('b', {}, String(n)), n === 1 ? 'partido' : 'partidos')));
+      el('span', { class: 'arbitro-num' }, el('b', {}, String(d)), d === 1 ? 'designación' : 'designaciones')));
   });
 }
 
@@ -252,6 +296,7 @@ function editorArbitro(a) {
 // ---------------- Partidos de un árbitro ----------------
 function abrirArbitro(a) {
   ADM.actual = a;
+  ADM.desig = { modo: 'mes', anio: ADM.periodo.anio || new Date().getFullYear(), liga: 'todas', abierto: null };
   $('#h-arbitro-titulo').textContent = nombreArbitro(a);
   abrirCapa('#h-arbitro', () => {
     if (ADM.actual === a) ADM.actual = null;
@@ -295,6 +340,7 @@ function pintarArbitro(animarLista = false) {
     el('button', { type: 'button', class: 'btn btn-ghost', onclick: () => editorArbitro(a) }, a.autorizado ? 'Editar' : 'Volver a añadir'));
   cuerpo.append(cab);
   if (!todos.length) { const v = el('div', {}); admAviso(v, 'Este árbitro todavía no cargó partidos.'); cuerpo.append(v); return; }
+  cuerpo.append(el('div', { class: 'd-seccion' }, el('h4', {}, 'Designaciones'), contadorDesignaciones(todos, ADM.desig)));
 
   const cuentaLiga = id => todos.filter(p => p.liga === id).length;
   const tabs = el('div', { class: 'ligas-tabs' });
