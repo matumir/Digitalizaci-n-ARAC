@@ -47,7 +47,8 @@ iPhone no instala APKs: se usa la versión web, que se publica sola en cada `git
 (`.github/workflows/web.yml`) en **https://matumir.github.io/Digitalizaci-n-ARAC/app/**.
 1. Abrila en **Safari**, tocá **Compartir** y después **Agregar a pantalla de inicio**.
 2. Queda con su ícono, se abre a pantalla completa y funciona sin internet.
-Cuando hay una versión nueva, la app muestra *Hay una versión nueva · Actualizar*.
+Cuando se publica un cambio, la app muestra *Hay una versión nueva · Actualizar*
+(y si es una versión anunciada, el cartel de la sección *Versiones nuevas*).
 También sirve en Android (Chrome → Instalar) y en la computadora.
 
 ## Dónde está cada cosa
@@ -61,6 +62,7 @@ También sirve en Android (Chrome → Instalar) y en la computadora.
 - `supabase/setup.sql` — whitelist de cuentas. `supabase/sync.sql` — tablas, archivos y borrado de fotos a los 15 días.
 - `www/admin.js` y `supabase/admin.sql` — panel de administrador (ver todos los árbitros y sus partidos).
 - `www/recordatorio.js`, `supabase/recordatorio.sql` y `supabase/functions/recordatorio/` — aviso de los fines de semana.
+- `www/version.json` y `www/actualizaciones.js` — número de versión y aviso de versión nueva.
 - `www/manifest.webmanifest`, `www/sw.js`, `www/pwa.js`, `www/icons/` — versión web instalable (PWA).
 - `scripts/preparar-web.mjs` — arma la versión web en `dist/` (lista de archivos para usar sin internet).
 - `android/` — proyecto Android (Capacitor 7).
@@ -168,6 +170,29 @@ y tiene que ser la misma.
 5. Para probarlo sin esperar al fin de semana: en el **panel de administrador → Notificaciones → Probar** se manda
    el aviso al teléfono del administrador (en la versión web, primero hay que activar el recordatorio en ese teléfono).
    Para mandárselo a todos, corré en el SQL Editor el `select net.http_post(…)` que está en `supabase/recordatorio.sql`.
+
+## Versiones nuevas
+
+Para anunciar una versión, antes del `git push` editá `www/version.json`: subí el número (`1.1` → `1.2`;
+`1.10` es más nueva que `1.9`) y escribí en `nota` qué cambió. Los cambios que suben sin tocar el número
+se publican igual, pero sin aviso.
+
+Cuando hay un número nuevo:
+- **Al entrar a la app** aparece un cartel con la nota y **Descargar** (APK: baja el APK nuevo para instalarlo
+  encima, sin perder nada) o **Actualizar** (versión web: se recarga sola). Si se cierra, vuelve al día siguiente
+  hasta que se actualice. También está en **Ajustes → Versión de la app**.
+- **Notificación**: en el APK la muestra el teléfono la primera vez que la app ve la versión nueva (al abrirla o
+  volver a ella; un APK fuera de Play Store no puede revisar con la app cerrada). En la versión web la manda el
+  servidor apenas termina de compilarse el APK, aunque la app esté cerrada (sólo a quienes activaron las
+  notificaciones del recordatorio).
+- En el APK el aviso espera a que el APK nuevo esté en *Releases* (unos 5 minutos después del `git push`).
+
+Para la notificación de la versión web (una sola vez):
+1. Desplegá de nuevo la función `recordatorio` (`supabase/functions/recordatorio/index.ts`, como en el paso 2
+   del recordatorio).
+2. En GitHub: **Settings → Secrets and variables → Actions → New repository secret**, nombre `ARAC_CLAVE_PUSH`,
+   con el mismo valor que el secreto de Supabase. Sin este secreto la compilación avisa con una advertencia y
+   sólo queda el cartel al entrar.
 
 ## Importante
 Los datos de los partidos quedan en la cuenta: si se pierde el teléfono, se recuperan iniciando sesión en otro.

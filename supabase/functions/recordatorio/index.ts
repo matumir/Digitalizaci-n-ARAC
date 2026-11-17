@@ -4,6 +4,9 @@
 // Tres formas de llamarla:
 // - El cron "arac-recordatorio" (supabase/recordatorio.sql), con la clave ARAC_CLAVE_PUSH:
 //   manda el recordatorio de los fines de semana a todos.
+// - GitHub, al publicar un APK (.github/workflows/apk.yml), con la misma clave y
+//   { tipo: 'version', version, nota } (de www/version.json): avisa la versión nueva a todos,
+//   una sola vez por número de versión, y la deja guardada en la tabla avisos.
 // - El panel de administrador, con la sesión del administrador:
 //   · { prueba: true }: el recordatorio, sólo a los teléfonos de esa cuenta;
 //   · { tipo: 'version' | 'recordatorio' }: un aviso a todos. Además queda guardado en la
@@ -45,7 +48,9 @@ Deno.serve(async req => {
   let destinos: Destino[] = [];
   let aviso = AVISOS.recordatorio;
   let avisoId: number | null = null;
-  if (pedido.prueba || pedido.tipo) {
+  // Con la clave (cron o GitHub) va por abajo; sin ella, es el panel de administrador
+  const conClave = req.headers.has('x-arac-clave');
+  if (!conClave && (pedido.prueba || pedido.tipo)) {
     // Desde el panel: sólo un administrador
     const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
     const { data: u } = await sb.auth.getUser(token);
@@ -76,6 +81,20 @@ Deno.serve(async req => {
   } else {
     const clave = Deno.env.get('ARAC_CLAVE_PUSH');
     if (!clave || req.headers.get('x-arac-clave') !== clave) return responder({ error: 'No autorizado' }, 401);
+    if (pedido.tipo === 'version') {
+      // Versión nueva publicada desde GitHub: una sola vez por número de versión
+      const version = String(pedido.version ?? '').trim();
+      if (!version) return responder({ error: 'Falta la versión' }, 400);
+      const nota = String(pedido.nota ?? '').trim();
+      aviso = { title: `Versión ${version} de ARAC Partidos`, body: (nota ? nota + ' ' : '') + 'Actualizá la app para tenerla.', url: './' };
+      const { data: ya, error: e0 } = await sb.from('avisos').select('id').eq('tipo', 'version').eq('titulo', aviso.title).limit(1);
+      if (e0) return responder({ error: e0.message }, 500);
+      if (ya?.length) return responder({ enviados: 0, repetido: true });
+      const { data: fila, error: e1 } = await sb.from('avisos')
+        .insert({ tipo: 'version', titulo: aviso.title, cuerpo: aviso.body }).select('id').single();
+      if (e1) return responder({ error: e1.message }, 500);
+      avisoId = fila.id;
+    }
     const { data, error } = await sb.rpc('push_destinos');
     if (error) return responder({ error: error.message }, 500);
     destinos = data ?? [];

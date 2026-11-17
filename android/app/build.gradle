@@ -8,9 +8,11 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // En GitHub cada compilación sube el número de versión (Android lo usa para las actualizaciones)
+        // El nombre de la versión sale de www/version.json (el mismo número que avisa la app)
         def compilacion = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
+        def versionApp = new groovy.json.JsonSlurper().parse(file('../../www/version.json')).version
         versionCode compilacion
-        versionName "1.0.${compilacion}"
+        versionName "${versionApp} (${compilacion})"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

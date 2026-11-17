@@ -74,3 +74,20 @@ jobs:
           body: Instalá arac-partidos.apk desde el celular.
           files: arac-partidos.apk
           make_latest: true
+
+      # Si www/version.json tiene un número nuevo, avisa a todos: notificación al instante en la
+      # versión web y cartel al abrir la app. La función lo manda una sola vez por versión, así que
+      # en las compilaciones siguientes con el mismo número no pasa nada. Necesita el secreto
+      # ARAC_CLAVE_PUSH (el mismo valor que en Supabase › Edge Functions › Secrets).
+      - name: Avisar la versión nueva
+        env:
+          CLAVE: ${{ secrets.ARAC_CLAVE_PUSH }}
+        run: |
+          if [ -z "$CLAVE" ]; then
+            echo "::warning::Falta el secreto ARAC_CLAVE_PUSH: no se mandó la notificación de versión nueva."
+            exit 0
+          fi
+          cuerpo=$(node -e "const v=require('./www/version.json');process.stdout.write(JSON.stringify({tipo:'version',version:String(v.version),nota:v.nota||''}))")
+          curl -sS -X POST "https://jvclrktwezisvuljemgi.supabase.co/functions/v1/recordatorio" \
+            -H "Content-Type: application/json" -H "x-arac-clave: $CLAVE" --data "$cuerpo" \
+            || echo "::warning::No se pudo mandar el aviso de versión nueva."
