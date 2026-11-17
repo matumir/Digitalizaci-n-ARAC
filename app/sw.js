@@ -2,8 +2,9 @@
    Guarda la app completa en el teléfono para que abra sin internet.
    VERSION y PRECACHE los completa scripts/preparar-web.mjs al publicar; cada publicación
    cambia este archivo, así el teléfono detecta que hay una versión nueva. */
-const VERSION = "cace729032";
+const VERSION = "aa4ee49753";
 const PRECACHE = [
+ "actualizaciones.js",
  "admin.js",
  "app.css",
  "app.js",
@@ -139,7 +140,8 @@ const PRECACHE = [
  "vendor/cap-local-notifications.js",
  "vendor/cap-share.js",
  "vendor/capacitor.js",
- "vendor/supabase.js"
+ "vendor/supabase.js",
+ "version.json"
 ];
 const CACHE = 'arac-' + VERSION;
 

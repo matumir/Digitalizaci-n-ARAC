@@ -99,8 +99,13 @@
       <div class="chips chips-grandes" id="c-subs"></div>
     </div>
 
+    <div class="paso" id="p-inst" hidden>
+      <h2><span class="num">3</span>Instancia <small>fase regular o instancias finales</small></h2>
+      <div id="c-inst"></div>
+    </div>
+
     <div class="paso" id="p-equipos" hidden>
-      <h2><span class="num">3</span>Equipos</h2>
+      <h2><span class="num">4</span>Equipos</h2>
       <div class="versus">
         <button class="slot" id="slot-local" type="button"></button>
         <span class="vs">VS</span>
@@ -109,17 +114,17 @@
     </div>
 
     <div class="paso" id="p-resultado" hidden>
-      <h2><span class="num">4</span>Resultado <small>opcional, también se puede cargar después</small></h2>
+      <h2><span class="num">5</span>Resultado <small>opcional, también se puede cargar después</small></h2>
       <div id="c-resultado"></div>
     </div>
 
     <div class="paso" id="p-fecha" hidden>
-      <h2><span class="num">5</span>Fecha del partido</h2>
+      <h2><span class="num">6</span>Fecha del partido</h2>
       <input type="date" id="c-fecha" class="campo fecha">
     </div>
 
     <div class="paso" id="p-fotos" hidden>
-      <h2><span class="num">6</span>Planillas y tarjetas <small>opcional</small></h2>
+      <h2><span class="num">7</span>Planillas y tarjetas <small>opcional</small></h2>
       <div class="foto-botones">
         <label class="btn btn-ghost"><input type="file" accept="image/*" capture="environment" id="c-camara" hidden><svg class="ico" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Sacar foto</label>
         <label class="btn btn-ghost"><input type="file" accept="image/*" multiple id="c-galeria" hidden><svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m4 17 5-5 4 4 2.5-2.5L20 18"/></svg>Elegir de galería</label>
@@ -128,12 +133,12 @@
     </div>
 
     <div class="paso" id="p-inc" hidden>
-      <h2><span class="num">7</span>Incidencias <small>opcional: tarjetas, goles y cambios de cada equipo</small></h2>
+      <h2><span class="num">8</span>Incidencias <small>opcional: tarjetas, goles y cambios de cada equipo</small></h2>
       <div id="c-inc"></div>
     </div>
 
     <div class="paso" id="p-notas" hidden>
-      <h2><span class="num">8</span>Notas <small>opcional</small></h2>
+      <h2><span class="num">9</span>Notas <small>opcional</small></h2>
       <textarea id="c-notas" class="campo notas" rows="4" placeholder="Algo más para anotar: demoras, estado de la cancha, observaciones…"></textarea>
     </div>
 
@@ -235,6 +240,13 @@
         </div>
         <p class="field-help" id="aj-rec-ayuda">Los sábados y domingos a las 22:00 te avisa para que cargues los partidos de la jornada.</p>
       </div>
+      <div class="field" id="aj-version">
+        <span class="field-label">Versión de la app</span>
+        <div class="cuenta-fila">
+          <span class="sync-texto"><b id="aj-ver-texto">—</b><span id="aj-ver-detalle"></span></span>
+          <button type="button" class="btn btn-ghost" id="btn-ver-buscar">Buscar</button>
+        </div>
+      </div>
       <div class="field" id="aj-cuenta" hidden>
         <span class="field-label">Cuenta</span>
         <div class="cuenta-fila">
@@ -259,6 +271,29 @@
       <button type="button" class="icon-btn" data-cerrar aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="sheet-body" id="inc-cuerpo"></div>
+  </div>
+</div>
+
+<!-- Versión nueva disponible (actualizaciones.js) -->
+<div class="sheet-wrap" id="h-version" hidden>
+  <div class="sheet-fondo" data-cerrar></div>
+  <div class="sheet" role="dialog" aria-labelledby="ver-titulo">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head">
+      <div>
+        <h2 id="ver-titulo">Hay una versión nueva</h2>
+        <p class="sheet-sub" id="ver-numeros"></p>
+      </div>
+      <button type="button" class="icon-btn" data-cerrar aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <p class="version-nota" id="ver-nota"></p>
+      <p class="field-help" id="ver-ayuda"></p>
+      <div class="version-botones">
+        <button type="button" class="btn btn-ghost" id="ver-luego">Más tarde</button>
+        <button type="button" class="btn btn-primary" id="ver-ok">Actualizar</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -293,6 +328,7 @@
 <script src="sync.js"></script>
 <script src="admin.js"></script>
 <script src="recordatorio.js"></script>
+<script src="actualizaciones.js"></script>
 <script src="auth.js"></script>
 <script src="pwa.js"></script>
 </body>

@@ -127,7 +127,8 @@
       : 'El servidor no encontró este teléfono. Desactivá y volvé a activar el recordatorio.';
   }
   // Aviso del administrador a todos ('version' o 'recordatorio'): la versión web lo recibe al
-  // instante; todos (también el APK) lo ven en un cartel al abrir la app (ver revisarAvisos).
+  // instante; todos (también el APK) lo ven al abrir la app (ver revisarAvisos; el de versión
+  // lo muestra actualizaciones.js sólo a quien no tiene la última).
   async function enviarATodos(tipo) {
     const { data, error } = await sb.functions.invoke('recordatorio', { body: { tipo } });
     if (error) throw new Error('¿Está desplegada la versión nueva de la función "recordatorio"?');
@@ -140,7 +141,6 @@
   // ---------------- Avisos del administrador (cartel al abrir la app) ----------------
   const CLAVE_VISTO = 'arac-aviso-visto';        // id del último aviso visto en este teléfono
   const AVISO_VIGENTE = 7 * 86400000;            // uno más viejo ya no se muestra
-  const URL_APK = 'https://github.com/matumir/Digitalizaci-n-ARAC/releases/latest';
   const leerVisto = () => { try { return localStorage.getItem(CLAVE_VISTO); } catch (e) { return null; } };
   const guardarVisto = id => { try { localStorage.setItem(CLAVE_VISTO, String(id)); } catch (e) {} };
   let revisando = false;
@@ -161,31 +161,20 @@
       if (error || !data || !data.length) return;
       const ultimo = data[0];
       if (Date.now() - Date.parse(ultimo.creado) > AVISO_VIGENTE) { guardarVisto(ultimo.id); return; }
+      // Versión nueva: la revisa actualizaciones.js (si ya está al día, no muestra nada)
+      if (ultimo.tipo === 'version') { guardarVisto(ultimo.id); if (window.Actualizaciones) Actualizaciones.revisar(); return; }
       mostrarAviso(ultimo);
     } catch (e) { /* sin internet o falta correr admin.sql: se revisa la próxima vez */ }
     finally { revisando = false; }
   }
 
-  async function actualizarApp() {
-    if (nativo) { try { await Cap.Plugins.Browser.open({ url: URL_APK }); } catch (e) { window.open(URL_APK, '_blank'); } return; }
-    // Versión web: el aviso de pwa.js ("Hay una versión nueva · Actualizar") hace el cambio
-    const boton = $('#btn-actualizar');
-    if (!$('#actualizar').hidden) { boton.click(); return; }
-    toast('Buscando la versión nueva…');
-    try { if (registro) await registro.update(); } catch (e) {}
-    setTimeout(() => { if (!$('#actualizar').hidden) boton.click(); else toast('Ya tenés la versión más nueva'); }, 2000);
-  }
-
   function mostrarAviso(a) {
     const caja = $('#aviso-admin');
     const cerrar = () => { guardarVisto(a.id); caja.hidden = true; };
-    const version = a.tipo === 'version';
     $('#aviso-admin-texto').replaceChildren(el('b', {}, a.titulo), a.cuerpo);
-    const botones = $('#aviso-admin-botones');
-    botones.replaceChildren(
-      el('button', { type: 'button', class: 'btn btn-ghost', onclick: cerrar }, version ? 'Ahora no' : 'Cerrar'),
-      el('button', { type: 'button', class: 'btn btn-primary', onclick: () => { cerrar(); version ? actualizarApp() : mostrarVista('cargar'); } },
-        version ? (nativo ? 'Descargar' : 'Actualizar') : 'Cargar partido'));
+    $('#aviso-admin-botones').replaceChildren(
+      el('button', { type: 'button', class: 'btn btn-ghost', onclick: cerrar }, 'Cerrar'),
+      el('button', { type: 'button', class: 'btn btn-primary', onclick: () => { cerrar(); mostrarVista('cargar'); } }, 'Cargar partido'));
     caja.hidden = false;
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') revisarAvisos(); });
@@ -218,7 +207,8 @@
     if (cuentaActual) mostrarVista('cargar');
     else history.replaceState(history.state, '', '#cargar');   // lo abre app.js al entrar
   }
-  if (LN) LN.addListener('localNotificationActionPerformed', abrirCargar);
+  // (el aviso de versión nueva, id 7100, lo atiende actualizaciones.js)
+  if (LN) LN.addListener('localNotificationActionPerformed', e => { if (!(e && e.notification && e.notification.id === 7100)) abrirCargar(); });
   if (conSW) navigator.serviceWorker.addEventListener('message', e => { if (e.data === 'abrir-cargar') abrirCargar(); });
 
   // ---------------- Sesión ----------------

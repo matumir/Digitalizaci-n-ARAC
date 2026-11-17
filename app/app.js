@@ -24,12 +24,70 @@ const catDe = (liga, id) => categorias(liga).find(c => c.id === id);
 const ligaDe = id => LIGAS.find(l => l.id === id);
 const CLUB = {}; (window.CLUBES || []).forEach(c => { CLUB[c.id] = c; });
 
+// Instancia del torneo: p.fase = regular | octavos | cuartos | semis | final (los partidos
+// viejos no la tienen). En la Liga Regional San Francisco además p.torneo y, en Primera, p.div (A | B).
+const FASES = [['regular', 'Fase regular'], ['octavos', 'Octavos de final'], ['cuartos', 'Cuartos de final'], ['semis', 'Semifinal'], ['final', 'Final']];
+const FINALES = FASES.slice(1);
+const TORNEOS_INF_SF = [['clasificatorio', 'Clasificatorio'], ['absoluto', 'Absoluto'], ['oro', 'Copa de Oro'], ['plata', 'Copa de Plata'], ['bronce', 'Copa de Bronce']];
+const TORNEOS_PRIMERA_SF = {
+  A: [['absoluto', 'Torneo Absoluto'], ['permanencia', 'Torneo Permanencia']],
+  B: [['regular', 'Fase regular'], ['ascenso', 'Torneo Ascenso']],   // la fase regular de la B no tiene más instancias
+};
+const CAMPOS_INST = ['div', 'torneo', 'fase'];
+
+// Qué hay que elegir según la liga, la categoría y lo ya elegido. Cada paso: { campo, titulo, items: [[valor, texto]] }.
+function pasosInstancia(o) {
+  const pasos = [];
+  if (o.liga === 'sf' && o.cat === 'primera') {
+    pasos.push({ campo: 'div', titulo: 'Categoría', items: [['A', 'Categoría A'], ['B', 'Categoría B']] });
+    if (!o.div) return pasos;
+    pasos.push({ campo: 'torneo', titulo: 'Torneo', items: TORNEOS_PRIMERA_SF[o.div] });
+    if (!o.torneo || o.torneo === 'regular') return pasos;
+    pasos.push({ campo: 'fase', titulo: 'Instancia', items: o.torneo === 'ascenso' ? FINALES : FASES });
+    return pasos;
+  }
+  if (o.liga === 'sf' && o.cat === 'inferiores') {
+    pasos.push({ campo: 'torneo', titulo: 'Torneo', items: TORNEOS_INF_SF });
+    if (!o.torneo) return pasos;
+  }
+  pasos.push({ campo: 'fase', titulo: 'Fase', items: FASES });
+  return pasos;
+}
+const instanciaCompleta = o => pasosInstancia(o).every(p => o[p.campo]);
+
+// Deja la instancia coherente después de un cambio: borra lo que ya no corresponde
+// (otra liga o categoría) y, donde se puede, deja Fase regular elegida.
+function normalizarInstancia(o) {
+  let pasos;
+  for (let vuelta = 0; vuelta < CAMPOS_INST.length + 1; vuelta++) {
+    pasos = pasosInstancia(o);
+    let cambio = false;
+    for (const p of pasos) {
+      if (o[p.campo] && p.items.some(([v]) => v === o[p.campo])) continue;
+      const def = p.campo === 'fase' && p.items.some(([v]) => v === 'regular') ? 'regular' : null;
+      if ((o[p.campo] || null) !== def) { o[p.campo] = def; cambio = true; }
+    }
+    if (!cambio) break;
+  }
+  CAMPOS_INST.forEach(c => { if (o[c] != null && !pasos.some(p => p.campo === c)) o[c] = null; });
+}
+
+const nombreDe = (lista, v) => ((lista || []).find(x => x[0] === v) || [])[1] || '';
+function textosInstancia(p) {
+  const t = [];
+  if (p.torneo) t.push(p.liga === 'sf' && p.cat === 'primera' ? nombreDe(TORNEOS_PRIMERA_SF[p.div], p.torneo) : nombreDe(TORNEOS_INF_SF, p.torneo));
+  if (p.fase && p.fase !== 'regular') t.push(nombreDe(FASES, p.fase));
+  return t.filter(Boolean);
+}
+
 function textoCategoria(p) {
   const c = catDe(p.liga, p.cat);
   if (!c) return '';
-  if (p.cat === 'femenino') return 'Femenino ' + p.sub;
-  if (p.cat === 'inferiores') return p.sub;
-  return c.nombre;
+  let base = c.nombre;
+  if (p.cat === 'femenino') base = 'Femenino ' + p.sub;
+  else if (p.cat === 'inferiores') base = p.sub;
+  else if (p.liga === 'sf' && p.cat === 'primera' && p.div) base = 'Primera ' + p.div;
+  return [base, ...textosInstancia(p)].join(' · ');
 }
 
 // Resultado: gl = goles del local, gv = del visitante (null si no se cargó).
@@ -410,6 +468,37 @@ function opciones(cont, clave, items, crear, esSel) {
     cont._clave = clave;
   }
   [...cont.children].forEach(b => b.classList.toggle('sel', !!esSel(b._item)));
+}
+
+// Chips para elegir la instancia del torneo (Cargar y detalle). Cada fila aparece al elegir la anterior.
+function selectorInstancia(o, alCambiar, grandes = false) {
+  const cont = el('div', { class: 'instancia' });
+  const elegir = (campo, v) => {
+    if (o[campo] === v) return;
+    o[campo] = v;
+    normalizarInstancia(o);
+    pintar();
+    alCambiar();
+  };
+  function pintar() {
+    const pasos = pasosInstancia(o);
+    [...cont.children].forEach(n => { if (!pasos.some(p => p.campo === n._campo)) n.remove(); });
+    pasos.forEach(paso => {
+      let fila = [...cont.children].find(n => n._campo === paso.campo);
+      if (!fila) {
+        fila = el('div', { class: 'inst-paso' }, el('span', { class: 'inst-titulo' }, paso.titulo), el('div', { class: 'chips' + (grandes ? ' chips-grandes' : '') }));
+        fila._campo = paso.campo;
+        cont.append(fila);
+      }
+      fila.firstChild.textContent = paso.titulo;
+      opciones(fila.lastChild, paso.items.map(x => x[0]).join(), paso.items, ([v, txt]) => el('button', {
+        type: 'button', class: 'chip', onclick: () => elegir(paso.campo, v),
+      }, txt), ([v]) => o[paso.campo] === v);
+    });
+  }
+  pintar();
+  cont._pintar = pintar;
+  return cont;
 }
 
 // ---------------- Incidencias ----------------
@@ -1007,7 +1096,7 @@ function sincronizarResultado(obj, antes) {
 }
 
 // ---------------- CARGAR ----------------
-const form = { liga: null, cat: null, sub: null, local: null, visit: null, fecha: hoyISO(), fotos: [], notas: '', gl: null, gv: null, inc: [], tit: {} };
+const form = { liga: null, cat: null, sub: null, div: null, torneo: null, fase: null, local: null, visit: null, fecha: hoyISO(), fotos: [], notas: '', gl: null, gv: null, inc: [], tit: {} };
 
 function renderCargar() {
   opciones($('#c-ligas'), 'ligas', LIGAS, l => el('button', {
@@ -1036,9 +1125,15 @@ function renderCargar() {
     }, s), s => s === form.sub);
   }
   const catLista = cat && (!cat.subs || form.sub);
-  ['#p-equipos', '#p-resultado', '#p-fecha', '#p-fotos', '#p-inc', '#p-notas', '#barra-guardar'].forEach(s => { $(s).hidden = !catLista; });
+  ['#p-inst', '#p-equipos', '#p-resultado', '#p-fecha', '#p-fotos', '#p-inc', '#p-notas', '#barra-guardar'].forEach(s => { $(s).hidden = !catLista; });
   if (!catLista) return;
 
+  normalizarInstancia(form);
+  const ci0 = $('#c-inst');
+  if (ci0._clave !== form.liga + form.cat) {
+    ci0.replaceChildren(selectorInstancia(form, () => {}, true));
+    ci0._clave = form.liga + form.cat;
+  } else ci0.firstChild._pintar();
   pintarSlot('#slot-local', 'Local', form.local, 'local');
   pintarSlot('#slot-visit', 'Visitante', form.visit, 'visit');
   const res = $('#c-resultado');
@@ -1138,9 +1233,10 @@ function pintarFotosForm() {
 $('#btn-guardar').addEventListener('click', async () => {
   if (!form.local || !form.visit) { toast('Elegí los dos equipos'); return; }
   if ((form.gl == null) !== (form.gv == null)) { toast('Completá los goles de los dos equipos'); return; }
+  if (!instanciaCompleta(form)) { toast('Elegí la instancia del torneo'); $('#p-inst').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   const btn = $('#btn-guardar'); btn.disabled = true;
   const p = {
-    id: uid(), liga: form.liga, cat: form.cat, sub: form.sub || null,
+    id: uid(), liga: form.liga, cat: form.cat, sub: form.sub || null, div: form.div, torneo: form.torneo, fase: form.fase,
     local: form.local, visit: form.visit, gl: form.gl, gv: form.gv, inc: form.inc, tit: form.tit, fecha: form.fecha || hoyISO(), notas: form.notas.trim(), creado: Date.now(),
   };
   const fotos = form.fotos.map((f, i) => ({ id: uid() + i, partido: p.id, blob: f.blob, orden: i }));
@@ -1150,7 +1246,7 @@ $('#btn-guardar').addEventListener('click', async () => {
     btn.disabled = false; toast('No se pudo guardar. Probá de nuevo.'); return;
   }
   form.fotos.forEach(f => URL.revokeObjectURL(f.url));
-  // Se mantienen liga, categoría y fecha para cargar el siguiente más rápido.
+  // Se mantienen liga, categoría, instancia y fecha para cargar el siguiente más rápido.
   form.local = null; form.visit = null; form.gl = null; form.gv = null; form.inc = []; form.tit = {}; form.fotos = []; form.notas = '';
   ver.liga = p.liga; ver.cat = p.cat; ver.sub = null;
   toast('Partido guardado ✓');
@@ -1256,11 +1352,12 @@ async function pintarDetalle(p) {
     marcador.className = tieneResultado(p) ? 'marcador' : '';
   };
   pintarMarcador();
+  const catMeta = el('span', { class: 'cat' }, textoCategoria(p));
   c.append(el('div', { class: 'd-cab' },
     el('div', { class: 'd-equipos' }, eq(p.local), marcador, eq(p.visit)),
     el('div', { class: 'd-meta' },
       el('span', {}, el('b', {}, ligaDe(p.liga).nombre)),
-      el('span', { class: 'cat' }, textoCategoria(p)),
+      catMeta,
       el('span', {}, fechaLarga(p.fecha)))));
 
   // Resultado: se guarda solo al completar (o vaciar) los dos casilleros
@@ -1276,6 +1373,17 @@ async function pintarDetalle(p) {
     })); };
   pintarRes();
   c.append(el('div', { class: 'd-seccion' }, el('h4', {}, 'Resultado'), resWrap, estadoRes));
+
+  // Instancia del torneo: se guarda al completarla
+  const estadoInst = el('div', { class: 'notas-estado' });
+  c.append(el('div', { class: 'd-seccion' }, el('h4', {}, 'Instancia'),
+    selectorInstancia(p, async () => {
+      catMeta.textContent = textoCategoria(p);
+      if (!instanciaCompleta(p)) { estadoInst.textContent = 'Completá la instancia para guardarla'; return; }
+      try { await DB.actualizar(p); estadoInst.textContent = 'Guardado ✓'; } catch (e) { estadoInst.textContent = 'No se pudo guardar'; }
+      animar(estadoInst, 'cambia');
+    }),
+    estadoInst));
 
   const grid = el('div', { class: 'd-fotos' });
   fotosVisor.forEach((f, i) => {
@@ -1509,7 +1617,7 @@ window.addEventListener('arac:fin-sesion', () => {
   pila.length = 0;
   document.querySelectorAll('.hoja, .sheet-wrap, .visor').forEach(n => { n.hidden = true; n.classList.remove('se-va'); });
   form.fotos.forEach(f => URL.revokeObjectURL(f.url));
-  Object.assign(form, { liga: null, cat: null, sub: null, local: null, visit: null, gl: null, gv: null, inc: [], tit: {}, fotos: [], notas: '' });
+  Object.assign(form, { liga: null, cat: null, sub: null, div: null, torneo: null, fase: null, local: null, visit: null, gl: null, gv: null, inc: [], tit: {}, fotos: [], notas: '' });
   $('#lista').innerHTML = '';
   syncEstado = null; pintarSync();
 });
